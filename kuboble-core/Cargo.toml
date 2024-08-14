@@ -1,0 +1,8 @@
+[package]
+edition = "2021"
+name = "kuboble-core"
+version = "0.1.0"
+
+[dependencies]
+cell-grid = {version = "0.1.1", default-features = false}
+enum-map = "2.7.3"

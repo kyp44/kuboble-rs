@@ -1,0 +1,19 @@
+[package]
+edition = "2021"
+name = "kuboble-pygamer"
+version = "0.1.0"
+
+[dependencies]
+kuboble-core = {path = "../kuboble-core"}
+pygamer = {version = "0.9", features = ["panic_led"]}
+smart-leds = "0.3"
+
+[profile.dev]
+debug = true 
+incremental = false 
+lto = "thin" # thin for debug speed
+opt-level = 2 # uncomment for neopixel functionality during debug
+
+[profile.release]
+lto = "fat"
+opt-level = 's'
