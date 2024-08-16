@@ -4,5 +4,9 @@ name = "kuboble-core"
 version = "0.1.0"
 
 [dependencies]
-cell-grid = {version = "0.1.1", default-features = false}
-enum-map = "2.7.3"
+itertools = {version = "0.13.0", default-features = false}
+smallvec = {version = "1.13.2", features = ["const_generics"]}
+strum = {version = "0.26.3", default-features = false, features = ["derive"]}
+
+[features]
+std = []

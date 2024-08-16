@@ -1,6 +1,10 @@
 [package]
+edition = "2021"
 name = "kuboble-pc"
 version = "0.1.0"
-edition = "2021"
 
 [dependencies]
+easycurses = "0.13"
+#kuboble-core = {path = "../kuboble-core"}
+kuboble-core = {path = "../kuboble-core", features = ["std"]}
+strum = "0.26.2"

@@ -39,12 +39,10 @@ fn main() -> ! {
     .into_iter()
     .cycle();
 
-    //let x = kuboble_core::tester();
-
     loop {
         neopixel.write(colors.clone().take(5)).unwrap();
 
-        delay.delay_ms(1000u32);
+        delay.delay_ms(3000u32);
         colors.next();
     }
 }
