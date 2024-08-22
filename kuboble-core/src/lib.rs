@@ -1,9 +1,10 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![feature(variant_count)]
 
-use core::mem::variant_count;
+use core::{mem::variant_count, ops::Neg};
 use itertools::iproduct;
 pub use levels::LEVELS;
+pub use render::{Alert, RenderAction};
 use smallvec::{smallvec, SmallVec};
 use strum::{EnumIter, IntoEnumIterator};
 
@@ -11,6 +12,7 @@ use strum::{EnumIter, IntoEnumIterator};
 use std::vec::Vec;
 
 mod levels;
+mod render;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, EnumIter)]
 pub enum Piece {
@@ -33,7 +35,7 @@ pub struct Vector<T> {
     pub y: T,
 }
 impl<T> Vector<T> {
-    const fn new(x: T, y: T) -> Self {
+    pub const fn new(x: T, y: T) -> Self {
         Self { x, y }
     }
 }
@@ -45,6 +47,13 @@ impl core::ops::Add<Vector<i8>> for Vector<u8> {
             (self.x as i8 + rhs.x).try_into().unwrap(),
             (self.y as i8 + rhs.y).try_into().unwrap(),
         )
+    }
+}
+impl core::ops::Mul<i8> for Vector<i8> {
+    type Output = Vector<i8>;
+
+    fn mul(self, rhs: i8) -> Self::Output {
+        Self::new(rhs * self.x, rhs * self.y)
     }
 }
 impl From<Vector<u8>> for Vector<usize> {
@@ -76,7 +85,7 @@ impl Level {
         self.spaces[self.size.x as usize * position.y as usize + position.x as usize]
     }
 
-    pub fn positions(&self) -> impl Iterator<Item = Vector<u8>> {
+    pub fn all_positions(&self) -> impl Iterator<Item = Vector<u8>> {
         iproduct!(0..self.size.y, 0..self.size.x).map(|(y, x)| Vector::new(x, y))
     }
 }
@@ -88,71 +97,120 @@ pub enum Direction {
     Left,
     Right,
 }
-impl Direction {
-    fn as_vector(&self) -> Vector<i8> {
+impl Neg for Direction {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
         match self {
-            Direction::Up => Vector::new(0, -1),
-            Direction::Down => Vector::new(0, 1),
-            Direction::Left => Vector::new(-1, 0),
-            Direction::Right => Vector::new(1, 0),
+            Self::Up => Self::Down,
+            Self::Down => Self::Up,
+            Self::Left => Self::Right,
+            Self::Right => Self::Left,
+        }
+    }
+}
+impl Direction {
+    pub fn as_vector(&self) -> Vector<i8> {
+        match self {
+            Self::Up => Vector::new(0, -1),
+            Self::Down => Vector::new(0, 1),
+            Self::Left => Vector::new(-1, 0),
+            Self::Right => Vector::new(1, 0),
         }
     }
 }
 
-// NOTE: Only the active piece ever moved
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Move {
+    pub piece: Piece,
+    pub direction: Direction,
+}
+impl Neg for Move {
+    type Output = Move;
+
+    fn neg(self) -> Self::Output {
+        Self {
+            piece: self.piece,
+            direction: -self.direction,
+        }
+    }
+}
+impl Move {
+    pub const fn new(piece: Piece, direction: Direction) -> Self {
+        Self { piece, direction }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PieceSlid {
+    pub muv: Move,
+    pub starting_position: Vector<u8>,
+    pub is_active: bool,
+    pub distance: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OldActivePiece {
+    piece: Piece,
+    position: Vector<u8>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PieceMoved {
     pub piece: Piece,
+    pub is_active: bool,
     pub from: Vector<u8>,
+    pub from_space: Space,
     pub to: Vector<u8>,
 }
 
 // Note: We do not store a reference to the Level to keep the size down
 #[derive(Clone)]
-struct BoardState {
+struct BoardState<'a> {
+    pub level: &'a Level,
     pub positions: PieceMap<Vector<u8>>,
 }
-impl From<&Level> for BoardState {
-    fn from(value: &Level) -> Self {
+impl<'a> From<&'a Level> for BoardState<'a> {
+    fn from(value: &'a Level) -> Self {
         Self {
+            level: value,
             positions: value.starting_positions.clone(),
         }
     }
 }
-impl BoardState {
-    pub fn is_winning(&self, level: &Level) -> bool {
-        Piece::iter().all(|piece| level.get_space(*self.positions.get(piece)) == Space::Goal(piece))
+impl BoardState<'_> {
+    pub fn is_winning(&self) -> bool {
+        Piece::iter()
+            .all(|piece| self.level.get_space(*self.positions.get(piece)) == Space::Goal(piece))
     }
 
-    pub fn make_move(
-        &mut self,
-        level: &Level,
-        piece: Piece,
-        direction: Direction,
-    ) -> Option<PieceMoved> {
-        let starting_position = *self.positions.get(piece);
+    pub fn make_move(&mut self, muv: Move, is_active: bool) -> Option<PieceSlid> {
+        let starting_position = *self.positions.get(muv.piece);
         let mut position = starting_position.clone();
+        let vector = muv.direction.as_vector();
 
         // Move one space at a time until we hit a wall or another piece.
+        let mut distance = 0;
         loop {
-            let new_position = position + direction.as_vector();
+            let new_position = position + vector;
 
-            if level.get_space(new_position) == Space::Wall
+            if self.level.get_space(new_position) == Space::Wall
                 || Piece::iter().any(|piece| new_position == *self.positions.get(piece))
             {
                 break;
             }
 
+            distance += 1;
             position = new_position;
         }
 
-        if starting_position != position {
-            *self.positions.get_mut(piece) = position;
-            Some(PieceMoved {
-                piece,
-                true,
-                from: starting_position,
-                to: position,
+        if distance > 0 {
+            *self.positions.get_mut(muv.piece) = position;
+            Some(PieceSlid {
+                muv,
+                starting_position,
+                is_active,
+                distance,
             })
         } else {
             None
@@ -163,20 +221,14 @@ impl BoardState {
 #[cfg(feature = "std")]
 pub const MAX_MOVE_STACK: usize = u8::MAX as usize;
 #[cfg(not(feature = "std"))]
-pub const MAX_MOVE_STACK: usize = 50 + 1;
+pub const MAX_MOVE_STACK: usize = 50;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
     Move(Direction),
-    ChangePiece,
-    Undo,
+    ChangeActivePiece,
+    UndoMove,
     Restart,
-}
-
-#[derive(Debug, Clone)]
-pub struct PieceChanged<'a> {
-    pub active_piece: Piece,
-    pub positions: &'a PieceMap<Vector<u8>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -197,179 +249,179 @@ impl LevelRating {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum PiecesChanged<'a> {
+    Slid {
+        piece_slid: PieceSlid,
+        old_active_piece: Option<OldActivePiece>,
+    },
+    Moved(SmallVec<[PieceMoved; variant_count::<Piece>()]>),
+    ActivePiece {
+        active_piece: Piece,
+        positions: &'a PieceMap<Vector<u8>>,
+    },
+}
+
 #[derive(Debug, Default, Clone)]
-pub struct BoardChange<'a> {
-    pub moved_pieces: SmallVec<[PieceMoved; variant_count::<Piece>()]>,
-    pub active_piece_changed: Option<PieceChanged<'a>>,
+pub struct BoardChanged<'a> {
+    pub pieces_changed: Option<PiecesChanged<'a>>,
     pub num_moves_changed: Option<u8>,
-    pub winning_position: Option<LevelRating>,
+    pub winning_rating: Option<LevelRating>,
     pub at_max_moves: bool,
 }
 
 pub struct Board<'a> {
-    pub level: &'a Level,
+    board_state: BoardState<'a>,
     #[cfg(feature = "std")]
     move_stack: Vec<BoardState>,
     #[cfg(not(feature = "std"))]
-    move_stack: SmallVec<[BoardState; MAX_MOVE_STACK]>,
-    current_piece: Piece,
+    move_stack: SmallVec<[Move; MAX_MOVE_STACK]>,
+    active_piece: Piece,
 }
 impl<'a> From<&'a Level> for Board<'a> {
     fn from(value: &'a Level) -> Self {
         Self {
-            level: value,
-            #[cfg(feature = "std")]
-            move_stack: vec![BoardState::from(value)],
-            #[cfg(not(feature = "std"))]
-            move_stack: smallvec![BoardState::from(value)],
-            current_piece: Default::default(),
+            board_state: BoardState::from(value),
+            move_stack: Default::default(),
+            active_piece: Default::default(),
         }
     }
 }
-impl Board<'_> {
-    // TODO: If we change to a stack of moves this can just be a reference
-    fn current_board_state(&self) -> &BoardState {
-        self.move_stack.last().unwrap()
+impl<'a> Board<'a> {
+    pub fn level(&self) -> &'a Level {
+        self.board_state.level
     }
 
     pub fn piece_positions(&self) -> &PieceMap<Vector<u8>> {
-        &self.current_board_state().positions
+        &self.board_state.positions
     }
 
     fn num_moves(&self) -> u8 {
-        (self.move_stack.len() - 1).try_into().unwrap()
+        self.move_stack.len().try_into().unwrap()
     }
 
     fn move_stack_full(&self) -> bool {
         self.move_stack.len() >= MAX_MOVE_STACK
     }
 
-    pub fn execute_action(&mut self, action: Action) -> BoardChange {
+    fn winning_rating(&self) -> Option<LevelRating> {
+        self.board_state
+            .is_winning()
+            .then(|| LevelRating::new(self.level().optimal_moves, self.num_moves()))
+    }
+
+    pub fn execute_action(&mut self, action: Action) -> BoardChanged {
         match action {
             Action::Move(d) => self.make_move(d),
-            Action::ChangePiece => BoardChange {
-                active_piece_changed: Some(self.change_piece()),
+            Action::ChangeActivePiece => BoardChanged {
+                pieces_changed: Some(self.change_active_piece()),
                 ..Default::default()
             },
-            Action::Undo => match self.undo() {
-                Some(moved) => BoardChange {
-                    moved_pieces: smallvec![moved],
-                    num_moves_changed: Some(self.num_moves()),
-                    ..Default::default()
-                },
-                None => BoardChange::default(),
-            },
-            Action::Restart => todo!(),
+            Action::UndoMove => self.undo_move(),
+            Action::Restart => self.restart(),
         }
     }
 
-    fn make_move(&mut self, direction: Direction) -> BoardChange {
-        let mut new_state = self.current_board_state().clone();
-        let moved = new_state.make_move(self.level, self.current_piece, direction);
+    fn make_move(&mut self, direction: Direction) -> BoardChanged {
+        let muv = Move::new(self.active_piece, direction);
+        let mut new_state = self.board_state.clone();
+        let moved = new_state.make_move(muv, true);
 
         // TODO: Implement other piece moves (e.g. if the current piece can't move try the other piece in the same direction)
 
         match moved {
-            Some(m) => {
+            Some(piece_slid) => {
                 if self.move_stack_full() {
-                    BoardChange {
+                    BoardChanged {
                         at_max_moves: true,
                         ..Default::default()
                     }
                 } else {
-                    self.move_stack.push(new_state);
+                    self.move_stack.push(muv);
+                    self.board_state = new_state;
                     let num_moves = self.num_moves();
 
-                    BoardChange {
-                        moved_pieces: smallvec![m],
+                    BoardChanged {
+                        pieces_changed: Some(PiecesChanged::Slid {
+                            piece_slid,
+                            old_active_piece: None,
+                        }),
                         num_moves_changed: Some(num_moves),
-                        winning_position: self
-                            .current_board_state()
-                            .is_winning(self.level)
-                            .then(|| LevelRating::new(self.level.optimal_moves, num_moves)),
+                        winning_rating: self.winning_rating(),
                         ..Default::default()
                     }
                 }
             }
-            None => BoardChange::default(),
+            None => BoardChanged::default(),
         }
     }
 
-    fn change_piece(&mut self) -> PieceChanged {
-        let new_piece = match self.current_piece {
+    fn change_active_piece(&mut self) -> PiecesChanged {
+        let new_piece = match self.active_piece {
             Piece::Green => Piece::Orange,
             Piece::Orange => Piece::Green,
         };
 
-        self.current_piece = new_piece;
+        self.active_piece = new_piece;
 
-        PieceChanged {
+        PiecesChanged::ActivePiece {
             active_piece: new_piece,
-            positions: &self.current_board_state().positions,
+            positions: &self.board_state.positions,
         }
     }
 
-    // TODO: May not need this if the stack is moves instead of board states
-    fn piece_change(
-        &self,
-        old_state: &BoardState,
-        new_state: &BoardState,
-        piece: Piece,
-    ) -> Option<PieceMoved> {
-        let old_position = old_state.positions.get(piece);
-        let new_position = new_state.positions.get(piece);
-
-        (old_position != new_position).then(|| PieceMoved {
-            piece,
-            from: *old_position,
-            to: *new_position,
-        })
-    }
-
-    pub fn undo(&mut self) -> Option<PieceMoved> {
+    pub fn undo_move(&mut self) -> BoardChanged {
         if self.move_stack.len() > 1 {
             // Find which piece moved back
-            let old_state = self.move_stack.pop().unwrap();
-            let new_state = self.current_board_state();
+            let undo_move = -self.move_stack.pop().unwrap();
 
-            for piece in Piece::iter() {
-                let moved = self.piece_change(&old_state, new_state, piece);
-                if moved.is_some() {
-                    return moved;
-                }
+            // Apply the undo move
+            let piece_slid = self
+                .board_state
+                .make_move(undo_move, undo_move.piece == self.active_piece)
+                .unwrap();
+
+            BoardChanged {
+                pieces_changed: Some(PiecesChanged::Slid {
+                    piece_slid,
+                    old_active_piece: None,
+                }),
+                num_moves_changed: Some(self.num_moves()),
+                ..Default::default()
             }
+        } else {
+            BoardChanged::default()
         }
-
-        None
     }
 
-    pub fn restart(&mut self) -> BoardChange {
+    pub fn restart(&mut self) -> BoardChanged {
         if self.move_stack.len() > 1 {
             // We need to clear the stack
-            let old_state = self.move_stack.pop().unwrap();
-            let new_state = BoardState::from(self.level);
+            let old_state = self.board_state.clone();
+
+            // Reset the state
+            self.board_state = BoardState::from(self.level());
             self.move_stack.clear();
 
-            // Determine which pieces have changed locations
-            let moved_pieces = Piece::iter()
-                .filter_map(|piece| self.piece_change(&old_state, &new_state, piece))
-                .collect();
+            // Reset the active piece
+            self.active_piece = Piece::default();
 
-            self.move_stack.push(new_state);
-
-            // Select the default piece
-            let active_piece_changed = (self.current_piece != Piece::default()).then(|| {
-                self.current_piece = Piece::default();
-                PieceChanged {
-                    active_piece: self.current_piece,
-                    positions: &self.current_board_state().positions,
-                }
-            });
-
-            BoardChange {
-                moved_pieces,
-                active_piece_changed,
-                num_moves_changed: Some(0),
+            BoardChanged {
+                pieces_changed: Some(PiecesChanged::Moved(
+                    Piece::iter()
+                        .map(|piece| {
+                            let from = *old_state.positions.get(piece);
+                            PieceMoved {
+                                piece,
+                                is_active: piece == self.active_piece,
+                                from,
+                                from_space: self.level().get_space(from),
+                                to: *self.board_state.positions.get(piece),
+                            }
+                        })
+                        .collect(),
+                )),
+                num_moves_changed: Some(self.num_moves()),
                 ..Default::default()
             }
         } else {

@@ -5,6 +5,7 @@ version = "0.1.0"
 
 [dependencies]
 easycurses = "0.13"
-#kuboble-core = {path = "../kuboble-core"}
-kuboble-core = {path = "../kuboble-core", features = ["std"]}
-strum = "0.26.2"
+kuboble-core = {path = "../kuboble-core"}
+#kuboble-core = {path = "../kuboble-core", features = ["std"]}
+derive-new = "0.6"
+strum = "0.26"

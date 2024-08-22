@@ -1,10 +1,12 @@
-use core::borrow;
+use std::borrow::Cow;
 
+use derive_new::new;
 use easycurses::{
     constants::acs, Color, ColorPair, CursorVisibility, EasyCurses, Input, InputMode,
 };
-use kuboble_core::{Action, Board, Direction, Level, Piece, PieceMoved, Space, Vector, LEVELS};
-use strum::IntoEnumIterator;
+use kuboble_core::{
+    Action, Alert, Board, Direction, Level, Piece, PieceMoved, RenderAction, Space, Vector, LEVELS,
+};
 
 const BACKGROUND_COLOR: Color = Color::Black;
 
@@ -23,25 +25,22 @@ impl PieceExt for Piece {
 trait CursesExt {
     fn clear_row(&mut self, row: i32) -> Option<()>;
     fn clear_screen(&mut self) -> Option<()>;
-    fn put_board_char(
-        &mut self,
-        board_position: Vector<u8>,
-        color: Color,
-        character: u32,
-    ) -> Option<()>;
-    fn render_space(&mut self, board_position: Vector<u8>, space: Space) -> Option<()>;
-    fn render_piece(
-        &mut self,
-        board_position: Vector<u8>,
-        piece: Piece,
-        active: bool,
-    ) -> Option<()>;
-    fn render_board(&mut self, board: &Board) -> Option<()>;
-    fn update_move(&mut self, level: &Level, moved: &PieceMoved) -> Option<()>;
+    fn put_char(&mut self, position: Vector<i32>, color: Color, character: u32) -> Option<()>;
     fn print_on_row<S: AsRef<str>>(&mut self, row: i32, color: Color, msg: S) -> Option<()>;
-    fn render_hud(&mut self, board: &Board) -> Option<()>;
 }
 impl CursesExt for EasyCurses {
+    fn clear_row(&mut self, row: i32) -> Option<()> {
+        let size = self.get_row_col_count();
+
+        // Paint the background color over the row
+        self.set_color_pair(ColorPair::new(BACKGROUND_COLOR, BACKGROUND_COLOR));
+        for col in 0..size.1 {
+            self.move_rc(row as i32, col)?;
+            self.print_char(' ')?;
+        }
+        Some(())
+    }
+
     fn clear_screen(&mut self) -> Option<()> {
         // Clear the  screen
         self.clear()?;
@@ -55,106 +54,130 @@ impl CursesExt for EasyCurses {
         Some(())
     }
 
-    fn put_board_char(
-        &mut self,
-        board_position: Vector<u8>,
-        color: Color,
-        character: u32,
-    ) -> Option<()> {
-        self.move_rc(board_position.y as i32 + 1, board_position.x as i32 + 1)?;
+    fn put_char(&mut self, position: Vector<i32>, color: Color, character: u32) -> Option<()> {
+        self.move_rc(position.y, position.x)?;
         self.set_color_pair(ColorPair::new(color, BACKGROUND_COLOR));
         self.print_char(character)
     }
 
-    fn render_space(&mut self, board_position: Vector<u8>, space: Space) -> Option<()> {
-        let (color, c) = match space {
-            Space::Wall => (Color::White, '#'),
-            Space::Goal(piece) => (piece.to_color(), '#'),
-            _ => (Color::White, ' '),
-        };
-
-        self.put_board_char(board_position, color, c.into())
-    }
-
-    fn render_piece(
-        &mut self,
-        board_position: Vector<u8>,
-        piece: Piece,
-        active: bool,
-    ) -> Option<()> {
-        self.put_board_char(board_position, piece.to_color(), acs::diamond())
-    }
-
-    fn render_board(&mut self, board: &Board) -> Option<()> {
-        // Render level spaces
-        for position in board.level.positions() {
-            self.render_space(position, board.level.get_space(position))?;
-        }
-
-        // Render pieces
-        for piece in Piece::iter() {
-            self.render_piece(*board.current_board_state().positions.get(piece), piece)?;
-        }
-
-        // Render HUD
-        self.render_hud(board)?;
-
-        Some(())
-    }
-
-    fn update_move(&mut self, level: &Level, moved: &PieceMoved) -> Option<()> {
-        self.render_space(moved.from, level.get_space(moved.from))?;
-        self.render_piece(moved.to, moved.piece)
-    }
-
-    fn clear_row(&mut self, row: i32) -> Option<()> {
-        // Paint the background color
-        let size = self.get_row_col_count();
-
-        self.set_color_pair(ColorPair::new(BACKGROUND_COLOR, BACKGROUND_COLOR));
-        for col in 0..size.1 {
-            self.move_rc(row, col)?;
-            self.print_char(' ')?;
-        }
-        Some(())
-    }
-
+    // Row is
     fn print_on_row<S: AsRef<str>>(&mut self, row: i32, color: Color, msg: S) -> Option<()> {
         self.clear_row(row)?;
         self.move_rc(row, 0)?;
         self.set_color_pair(ColorPair::new(color, BACKGROUND_COLOR));
         self.print(msg)
     }
+}
 
-    fn render_hud(&mut self, board: &Board) -> Option<()> {
-        let board_status = board.board_status();
-        let first_row = board.level.size.y as i32 + 2;
+#[derive(new)]
+struct BoardRenderer<'a> {
+    curses: &'a mut EasyCurses,
+    level: &'a Level,
+}
+impl BoardRenderer<'_> {
+    // Converts board position to absolute position.
+    fn board_position(&self, board_position: Vector<u8>) -> Vector<i32> {
+        Vector::new(board_position.x as i32 + 1, board_position.y as i32 + 1)
+    }
 
-        self.print_on_row(
-            first_row,
-            Color::White,
-            format!("Moves: {}", board_status.num_moves),
-        )?;
-        self.print_on_row(
-            first_row + 1,
-            Color::White,
-            format!("Goal: {}", board.level.optimal_moves),
-        )?;
+    // Converts HUD row to absolute row.
+    fn row_num(&self, hud_row: u8) -> i32 {
+        (self.level.size.y + 2 + hud_row) as i32
+    }
 
-        let mut row = first_row + 2;
-        if board_status.winning_position {
-            self.print_on_row(row, Color::Yellow, "You win!")?;
-            row += 1;
-        } else {
-            self.clear_row(row)?;
+    fn render_space(&mut self, board_position: Vector<u8>, space: Space) {
+        let (color, c) = match space {
+            Space::Wall => (Color::White, '#'),
+            Space::Goal(piece) => (piece.to_color(), '#'),
+            _ => (Color::White, ' '),
+        };
+
+        self.curses
+            .put_char(self.board_position(board_position), color, c.into())
+            .unwrap()
+    }
+
+    fn render_piece(&mut self, board_position: Vector<u8>, piece: Piece, is_active: bool) {
+        self.curses
+            .put_char(
+                self.board_position(board_position),
+                piece.to_color(),
+                acs::diamond(),
+            )
+            .unwrap();
+
+        if is_active {
+            self.update_active_piece(piece);
         }
-        if board_status.at_max_moves {
-            self.print_on_row(row, Color::Red, "At maximum number of moves!")?;
-        } else {
-            self.clear_row(row)?;
-        }
+    }
 
-        Some(())
+    fn update_active_piece(&mut self, piece: Piece) {
+        self.curses
+            .print_on_row(self.row_num(0), piece.to_color(), "Active: ")
+            .unwrap();
+        self.curses.print_char(acs::diamond()).unwrap();
+    }
+
+    fn update_num_moves(&mut self, num_moves: u8) {
+        self.curses
+            .print_on_row(
+                self.row_num(1),
+                Color::White,
+                format!("Moves: {}", num_moves),
+            )
+            .unwrap();
+    }
+
+    fn update_goal(&mut self, goal: u8) {
+        self.curses
+            .print_on_row(self.row_num(2), Color::White, format!("Goal: {}", goal))
+            .unwrap();
+    }
+
+    fn display_alert(&mut self, alert: Alert) {
+        let (color, msg): (Color, Cow<str>) = match alert {
+            Alert::Win(rating) => (
+                Color::Yellow,
+                format!("You win with {} stars!", rating.rating()).into(),
+            ),
+            Alert::MaxMoves => (Color::Red, "At the maximum number of moves!".into()),
+        };
+
+        self.curses
+            .print_on_row(self.row_num(3), color, msg)
+            .unwrap();
+    }
+
+    pub fn execute_actions(&mut self, actions: impl Iterator<Item = RenderAction>) {
+        for action in actions {
+            match action {
+                RenderAction::DrawSpace { position, space } => self.render_space(position, space),
+                RenderAction::DrawPiece {
+                    position,
+                    piece,
+                    is_active,
+                } => self.render_piece(position, piece, is_active),
+                RenderAction::SlidePiece(slid) => {
+                    self.render_space(
+                        slid.starting_position,
+                        self.level.get_space(slid.starting_position),
+                    );
+                    self.render_piece(
+                        slid.starting_position
+                            + slid.muv.direction.as_vector() * slid.distance.try_into().unwrap(),
+                        slid.muv.piece,
+                        slid.is_active,
+                    );
+                }
+                RenderAction::UpdateNumMoves(n) => self.update_num_moves(n),
+                RenderAction::UpdateGoal(n) => self.update_goal(n),
+                RenderAction::Alert(a) => self.display_alert(a),
+            }
+        }
+    }
+
+    pub fn wait_for_key(&mut self) -> Input {
+        self.curses.get_input().unwrap()
     }
 }
 
@@ -167,48 +190,32 @@ fn main() {
     curses.set_input_mode(InputMode::Character).unwrap();
     curses.set_echo(false).unwrap();
     curses.set_keypad_enabled(true).unwrap();
+
     curses.clear_screen().unwrap();
 
     let mut board = Board::from(&LEVELS[0]);
-    curses.render_board(&board).unwrap();
+    let mut renderer = BoardRenderer::new(&mut curses, board.level());
+
+    renderer.execute_actions(board.render_actions());
 
     loop {
-        let action = match curses.get_input().unwrap() {
+        let action = match renderer.wait_for_key() {
             Input::Character('\u{1b}') | Input::Character('q') => {
+                // Quit
                 break;
             }
             Input::KeyUp => Action::Move(Direction::Up),
             Input::KeyDown => Action::Move(Direction::Down),
             Input::KeyLeft => Action::Move(Direction::Left),
             Input::KeyRight => Action::Move(Direction::Right),
-            Input::Character('\t') | Input::Character(' ') => Action::ChangePiece,
-            Input::KeyBackspace => Action::Undo,
+            Input::Character('\t') | Input::Character(' ') => Action::ChangeActivePiece,
+            Input::KeyBackspace => Action::UndoMove,
             Input::Character('r') => Action::Restart,
             _ => {
                 continue;
             }
         };
 
-        let board_change = board.execute_action(action);
-
-        for moved in board_change.moved_pieces {
-            curses.update_move(board.level, &moved).unwrap();
-        }
-
-        if let Some(piece) = board_change.active_piece_changed {
-            // TODO
-        }
-
-        if let Some(num) = board_change.num_moves_changed {
-            // TODO
-        }
-
-        if let Some(rating) = board_change.winning_position {
-            //TODO
-        }
-
-        if board_change.at_max_moves {
-            // TODO
-        }
+        renderer.execute_actions(board.execute_action(action).render_actions().into_iter());
     }
 }
