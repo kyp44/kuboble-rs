@@ -1,11 +1,12 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![feature(variant_count)]
+#![feature(let_chains)]
 
+use arrayvec::ArrayVec;
 use core::{mem::variant_count, ops::Neg};
 use itertools::iproduct;
 pub use levels::LEVELS;
 pub use render::{Alert, RenderAction};
-use smallvec::{smallvec, SmallVec};
 use strum::{EnumIter, IntoEnumIterator};
 
 #[cfg(feature = "std")]
@@ -164,7 +165,6 @@ pub struct PieceMoved {
     pub to: Vector<u8>,
 }
 
-// Note: We do not store a reference to the Level to keep the size down
 #[derive(Clone)]
 struct BoardState<'a> {
     pub level: &'a Level,
@@ -218,10 +218,11 @@ impl BoardState<'_> {
     }
 }
 
+// TODO: Reduce this to check win and max at the same time
 #[cfg(feature = "std")]
-pub const MAX_MOVE_STACK: usize = u8::MAX as usize;
+pub const MAX_MOVES: usize = u8::MAX as usize;
 #[cfg(not(feature = "std"))]
-pub const MAX_MOVE_STACK: usize = 50;
+pub const MAX_MOVES: usize = 5;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
@@ -255,7 +256,7 @@ pub enum PiecesChanged<'a> {
         piece_slid: PieceSlid,
         old_active_piece: Option<OldActivePiece>,
     },
-    Moved(SmallVec<[PieceMoved; variant_count::<Piece>()]>),
+    Moved(ArrayVec<PieceMoved, { variant_count::<Piece>() }>),
     ActivePiece {
         active_piece: Piece,
         positions: &'a PieceMap<Vector<u8>>,
@@ -275,7 +276,7 @@ pub struct Board<'a> {
     #[cfg(feature = "std")]
     move_stack: Vec<BoardState>,
     #[cfg(not(feature = "std"))]
-    move_stack: SmallVec<[Move; MAX_MOVE_STACK]>,
+    move_stack: ArrayVec<Move, MAX_MOVES>,
     active_piece: Piece,
 }
 impl<'a> From<&'a Level> for Board<'a> {
@@ -298,10 +299,6 @@ impl<'a> Board<'a> {
 
     fn num_moves(&self) -> u8 {
         self.move_stack.len().try_into().unwrap()
-    }
-
-    fn move_stack_full(&self) -> bool {
-        self.move_stack.len() >= MAX_MOVE_STACK
     }
 
     fn winning_rating(&self) -> Option<LevelRating> {
@@ -327,33 +324,27 @@ impl<'a> Board<'a> {
         let mut new_state = self.board_state.clone();
         let moved = new_state.make_move(muv, true);
 
+        let mut board_changed = BoardChanged::default();
+
         // TODO: Implement other piece moves (e.g. if the current piece can't move try the other piece in the same direction)
 
-        match moved {
-            Some(piece_slid) => {
-                if self.move_stack_full() {
-                    BoardChanged {
-                        at_max_moves: true,
-                        ..Default::default()
-                    }
-                } else {
-                    self.move_stack.push(muv);
-                    self.board_state = new_state;
-                    let num_moves = self.num_moves();
+        if let Some(piece_slid) = moved
+            && !self.move_stack.is_full()
+        {
+            self.move_stack.push(muv);
+            self.board_state = new_state;
+            let num_moves = self.num_moves();
 
-                    BoardChanged {
-                        pieces_changed: Some(PiecesChanged::Slid {
-                            piece_slid,
-                            old_active_piece: None,
-                        }),
-                        num_moves_changed: Some(num_moves),
-                        winning_rating: self.winning_rating(),
-                        ..Default::default()
-                    }
-                }
-            }
-            None => BoardChanged::default(),
+            board_changed.pieces_changed = Some(PiecesChanged::Slid {
+                piece_slid,
+                old_active_piece: None,
+            });
+            board_changed.num_moves_changed = Some(num_moves);
+            board_changed.winning_rating = self.winning_rating();
         }
+        board_changed.at_max_moves = self.move_stack.is_full();
+
+        board_changed
     }
 
     fn change_active_piece(&mut self) -> PiecesChanged {
@@ -371,7 +362,7 @@ impl<'a> Board<'a> {
     }
 
     pub fn undo_move(&mut self) -> BoardChanged {
-        if self.move_stack.len() > 1 {
+        if !self.move_stack.is_empty() {
             // Find which piece moved back
             let undo_move = -self.move_stack.pop().unwrap();
 

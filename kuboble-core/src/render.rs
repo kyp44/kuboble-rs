@@ -1,6 +1,5 @@
-use core::iter;
-
-use smallvec::{smallvec, SmallVec};
+use arrayvec::ArrayVec;
+use core::{iter, mem::variant_count};
 use strum::IntoEnumIterator;
 
 use crate::{
@@ -13,6 +12,7 @@ pub enum Alert {
     // You win with the rating
     Win(LevelRating),
     MaxMoves,
+    Clear,
 }
 
 pub enum RenderAction {
@@ -44,7 +44,7 @@ impl Board<'_> {
             }
             .filter(|ra| {
                 if let RenderAction::Alert(a) = ra {
-                    *a == Alert::MaxMoves && self.move_stack_full()
+                    *a == Alert::MaxMoves && self.move_stack.is_full()
                 } else {
                     true
                 }
@@ -90,47 +90,83 @@ impl From<OldActivePiece> for RenderAction {
         }
     }
 }
-impl From<PieceMoved> for [RenderAction; 2] {
-    fn from(value: PieceMoved) -> Self {
+impl PieceMoved {
+    pub fn render_actions(&self) -> [RenderAction; 2] {
         [
             RenderAction::DrawSpace {
-                position: value.from,
-                space: value.from_space,
+                position: self.from,
+                space: self.from_space,
             },
             RenderAction::DrawPiece {
-                position: value.to,
-                piece: value.piece,
-                is_active: value.is_active,
+                position: self.to,
+                piece: self.piece,
+                is_active: self.is_active,
             },
         ]
     }
 }
 
 impl PiecesChanged<'_> {
-    pub fn render_actions(self) -> SmallVec<[RenderAction; 2]> {
+    pub fn render_actions(self) -> ArrayVec<RenderAction, { 2 * variant_count::<Piece>() }> {
+        let mut actions = ArrayVec::new();
+
         match self {
             PiecesChanged::Slid {
                 piece_slid,
                 old_active_piece,
             } => {
-                let mut vec = smallvec![piece_slid.into()];
+                actions.push(piece_slid.into());
                 if let Some(oap) = old_active_piece {
-                    vec.push(oap.into())
+                    actions.push(oap.into())
                 }
-                vec
             }
-            PiecesChanged::Moved(moved) => todo!(),
+            PiecesChanged::Moved(moved) => {
+                actions.extend(
+                    moved
+                        .into_iter()
+                        .map(|pm| pm.render_actions().into_iter())
+                        .flatten(),
+                );
+            }
             PiecesChanged::ActivePiece {
                 active_piece,
                 positions,
-            } => todo!(),
+            } => {
+                actions.extend(Piece::iter().map(|piece| RenderAction::DrawPiece {
+                    position: *positions.get(piece),
+                    piece,
+                    is_active: piece == active_piece,
+                }));
+            }
         }
+
+        actions
     }
 }
 
 impl BoardChanged<'_> {
-    // TODO: How big does this vec need to be?
-    pub fn render_actions(self) -> SmallVec<[RenderAction; 40]> {
-        todo!()
+    pub fn render_actions(self) -> ArrayVec<RenderAction, { 2 * variant_count::<Piece>() + 2 }> {
+        let mut actions = ArrayVec::new();
+
+        if let Some(pc) = self.pieces_changed {
+            actions.extend(pc.render_actions().into_iter());
+        }
+
+        if let Some(n) = self.num_moves_changed {
+            actions.push(RenderAction::UpdateNumMoves(n));
+        }
+
+        let mut alert = None;
+        if let Some(rating) = self.winning_rating {
+            alert = Some(Alert::Win(rating));
+        } else {
+            if self.at_max_moves {
+                alert = Some(Alert::MaxMoves);
+            }
+        }
+
+        actions.push(RenderAction::Alert(alert.unwrap_or(Alert::Clear)));
+
+        actions
     }
 }

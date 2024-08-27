@@ -138,9 +138,10 @@ impl BoardRenderer<'_> {
         let (color, msg): (Color, Cow<str>) = match alert {
             Alert::Win(rating) => (
                 Color::Yellow,
-                format!("You win with {} stars!", rating.rating()).into(),
+                format!("You win with {}/5 stars!", rating.rating()).into(),
             ),
             Alert::MaxMoves => (Color::Red, "At the maximum number of moves!".into()),
+            Alert::Clear => (BACKGROUND_COLOR, "".into()),
         };
 
         self.curses
