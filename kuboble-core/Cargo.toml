@@ -4,9 +4,8 @@ name = "kuboble-core"
 version = "0.1.0"
 
 [dependencies]
-itertools = {version = "0.13.0", default-features = false}
-# TODO: Switch to arrayvec so it will panic when full, and also allows resizing
 arrayvec = {version = "0.7.6", default-features = false}
+itertools = {version = "0.13.0", default-features = false}
 strum = {version = "0.26.3", default-features = false, features = ["derive"]}
 
 [features]

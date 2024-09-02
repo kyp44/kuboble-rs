@@ -1,172 +1,120 @@
-use arrayvec::ArrayVec;
-use core::{iter, mem::variant_count};
 use strum::IntoEnumIterator;
 
 use crate::{
-    Board, BoardChanged, LevelRating, OldActivePiece, Piece, PieceMoved, PieceSlid, PiecesChanged,
-    Space, Vector,
+    Board, BoardChanged, LevelRating, Piece, PieceMoved, PieceSlid, PiecesChanged, Space, Vector,
 };
+
+#[cfg(feature = "std")]
+use crate::VecExt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Alert {
     // You win with the rating
     Win(LevelRating),
-    MaxMoves,
+    MaxMoves(u8),
     Clear,
 }
 
-pub enum RenderAction {
-    DrawSpace {
-        position: Vector<u8>,
-        space: Space,
-    },
-    DrawPiece {
-        position: Vector<u8>,
-        piece: Piece,
-        is_active: bool,
-    },
-    SlidePiece(PieceSlid),
-    UpdateNumMoves(u8),
-    UpdateGoal(u8),
-    Alert(Alert),
+pub trait BoardRenderer {
+    fn draw_space(&mut self, board_position: Vector<u8>, space: Space);
+    fn draw_piece(&mut self, board_position: Vector<u8>, piece: Piece, is_active: bool);
+    fn slide_piece(&mut self, piece_slid: PieceSlid);
+    fn update_num_moves(&mut self, num_moves: u8);
+    fn update_goal(&mut self, goal: u8);
+    fn display_alert(&mut self, alert: Alert);
 }
 
 impl Board<'_> {
-    // Appends the winning or max moves alerts, or neither.
-    fn append_render_alerts<'a>(
-        &'a self,
-        iter: impl Iterator<Item = RenderAction> + 'a,
-    ) -> impl Iterator<Item = RenderAction> + 'a {
-        iter.chain(
-            match self.winning_rating() {
-                Some(r) => iter::once(RenderAction::Alert(Alert::Win(r))),
-                None => iter::once(RenderAction::Alert(Alert::MaxMoves)),
-            }
-            .filter(|ra| {
-                if let RenderAction::Alert(a) = ra {
-                    *a == Alert::MaxMoves && self.move_stack.is_full()
-                } else {
-                    true
-                }
-            }),
-        )
-    }
     // For drawing the entire current board
-    pub fn render_actions(&self) -> impl Iterator<Item = RenderAction> + '_ {
+    pub fn render<R: BoardRenderer>(&self, renderer: &mut R) {
         let level = self.board_state.level;
 
-        self.append_render_alerts(
-            self.board_state
-                .level
-                .all_positions()
-                .map(|position| RenderAction::DrawSpace {
-                    position,
-                    space: level.get_space(position),
-                })
-                .chain(Piece::iter().map(|piece| RenderAction::DrawPiece {
-                    position: *self.board_state.positions.get(piece),
-                    piece: piece,
-                    is_active: self.active_piece == piece,
-                }))
-                .chain([
-                    RenderAction::UpdateNumMoves(self.num_moves()),
-                    RenderAction::UpdateGoal(level.optimal_moves),
-                ]),
-        )
+        // Render level spaces
+        for position in self.board_state.level.all_positions() {
+            renderer.draw_space(position, level.get_space(position));
+        }
+
+        // Render pieces
+        for piece in Piece::iter() {
+            renderer.draw_piece(
+                *self.board_state.positions.get(piece),
+                piece,
+                self.active_piece == piece,
+            );
+        }
+
+        // Update metrics
+        renderer.update_num_moves(self.num_moves());
+        renderer.update_goal(level.optimal_moves);
+
+        // Display alert if applicable
+        renderer.display_alert(if let Some(rating) = self.winning_rating() {
+            Alert::Win(rating)
+        } else {
+            if self.move_stack.is_full() {
+                Alert::MaxMoves(self.num_moves())
+            } else {
+                Alert::Clear
+            }
+        });
     }
 }
 
-impl From<PieceSlid> for RenderAction {
-    fn from(value: PieceSlid) -> Self {
-        RenderAction::SlidePiece(value)
-    }
-}
-impl From<OldActivePiece> for RenderAction {
-    fn from(value: OldActivePiece) -> Self {
-        RenderAction::DrawPiece {
-            position: value.position,
-            piece: value.piece,
-            is_active: false,
-        }
-    }
-}
 impl PieceMoved {
-    pub fn render_actions(&self) -> [RenderAction; 2] {
-        [
-            RenderAction::DrawSpace {
-                position: self.from,
-                space: self.from_space,
-            },
-            RenderAction::DrawPiece {
-                position: self.to,
-                piece: self.piece,
-                is_active: self.is_active,
-            },
-        ]
+    pub fn render<R: BoardRenderer>(&self, renderer: &mut R) {
+        renderer.draw_space(self.from, self.from_space);
+        renderer.draw_piece(self.to, self.piece, self.is_active);
     }
 }
 
 impl PiecesChanged<'_> {
-    pub fn render_actions(self) -> ArrayVec<RenderAction, { 2 * variant_count::<Piece>() }> {
-        let mut actions = ArrayVec::new();
-
+    pub fn render<R: BoardRenderer>(self, renderer: &mut R) {
         match self {
             PiecesChanged::Slid {
                 piece_slid,
                 old_active_piece,
             } => {
-                actions.push(piece_slid.into());
+                renderer.slide_piece(piece_slid);
                 if let Some(oap) = old_active_piece {
-                    actions.push(oap.into())
+                    renderer.draw_piece(oap.position, oap.piece, false);
                 }
             }
             PiecesChanged::Moved(moved) => {
-                actions.extend(
-                    moved
-                        .into_iter()
-                        .map(|pm| pm.render_actions().into_iter())
-                        .flatten(),
-                );
+                for piece_moved in moved {
+                    piece_moved.render(renderer);
+                }
             }
             PiecesChanged::ActivePiece {
                 active_piece,
                 positions,
             } => {
-                actions.extend(Piece::iter().map(|piece| RenderAction::DrawPiece {
-                    position: *positions.get(piece),
-                    piece,
-                    is_active: piece == active_piece,
-                }));
+                for piece in Piece::iter() {
+                    renderer.draw_piece(*positions.get(piece), piece, piece == active_piece);
+                }
             }
         }
-
-        actions
     }
 }
 
 impl BoardChanged<'_> {
-    pub fn render_actions(self) -> ArrayVec<RenderAction, { 2 * variant_count::<Piece>() + 2 }> {
-        let mut actions = ArrayVec::new();
-
+    pub fn render<R: BoardRenderer>(self, renderer: &mut R) {
         if let Some(pc) = self.pieces_changed {
-            actions.extend(pc.render_actions().into_iter());
+            pc.render(renderer);
         }
 
         if let Some(n) = self.num_moves_changed {
-            actions.push(RenderAction::UpdateNumMoves(n));
+            renderer.update_num_moves(n);
         }
 
         let mut alert = None;
         if let Some(rating) = self.winning_rating {
             alert = Some(Alert::Win(rating));
         } else {
-            if self.at_max_moves {
-                alert = Some(Alert::MaxMoves);
+            if let Some(n) = self.at_max_moves {
+                alert = Some(Alert::MaxMoves(n));
             }
         }
 
-        actions.push(RenderAction::Alert(alert.unwrap_or(Alert::Clear)));
-
-        actions
+        renderer.display_alert(if let Some(a) = alert { a } else { Alert::Clear });
     }
 }

@@ -6,7 +6,7 @@ use arrayvec::ArrayVec;
 use core::{mem::variant_count, ops::Neg};
 use itertools::iproduct;
 pub use levels::LEVELS;
-pub use render::{Alert, RenderAction};
+pub use render::{Alert, BoardRenderer};
 use strum::{EnumIter, IntoEnumIterator};
 
 #[cfg(feature = "std")]
@@ -218,11 +218,19 @@ impl BoardState<'_> {
     }
 }
 
-// TODO: Reduce this to check win and max at the same time
-#[cfg(feature = "std")]
-pub const MAX_MOVES: usize = u8::MAX as usize;
 #[cfg(not(feature = "std"))]
-pub const MAX_MOVES: usize = 5;
+pub const MAX_MOVES: usize = 50;
+
+#[cfg(feature = "std")]
+trait VecExt {
+    fn is_full(&self) -> bool;
+}
+#[cfg(feature = "std")]
+impl<T> VecExt for Vec<T> {
+    fn is_full(&self) -> bool {
+        false
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
@@ -268,13 +276,13 @@ pub struct BoardChanged<'a> {
     pub pieces_changed: Option<PiecesChanged<'a>>,
     pub num_moves_changed: Option<u8>,
     pub winning_rating: Option<LevelRating>,
-    pub at_max_moves: bool,
+    pub at_max_moves: Option<u8>,
 }
 
 pub struct Board<'a> {
     board_state: BoardState<'a>,
     #[cfg(feature = "std")]
-    move_stack: Vec<BoardState>,
+    move_stack: Vec<Move>,
     #[cfg(not(feature = "std"))]
     move_stack: ArrayVec<Move, MAX_MOVES>,
     active_piece: Piece,
@@ -342,7 +350,7 @@ impl<'a> Board<'a> {
             board_changed.num_moves_changed = Some(num_moves);
             board_changed.winning_rating = self.winning_rating();
         }
-        board_changed.at_max_moves = self.move_stack.is_full();
+        board_changed.at_max_moves = self.move_stack.is_full().then_some(self.num_moves());
 
         board_changed
     }
@@ -386,7 +394,7 @@ impl<'a> Board<'a> {
     }
 
     pub fn restart(&mut self) -> BoardChanged {
-        if self.move_stack.len() > 1 {
+        if !self.move_stack.is_empty() {
             // We need to clear the stack
             let old_state = self.board_state.clone();
 

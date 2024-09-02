@@ -5,7 +5,7 @@ use easycurses::{
     constants::acs, Color, ColorPair, CursorVisibility, EasyCurses, Input, InputMode,
 };
 use kuboble_core::{
-    Action, Alert, Board, Direction, Level, Piece, PieceMoved, RenderAction, Space, Vector, LEVELS,
+    Action, Alert, Board, BoardRenderer, Direction, Level, Piece, Space, Vector, LEVELS,
 };
 
 const BACKGROUND_COLOR: Color = Color::Black;
@@ -70,22 +70,12 @@ impl CursesExt for EasyCurses {
 }
 
 #[derive(new)]
-struct BoardRenderer<'a> {
+struct CursesRenderer<'a> {
     curses: &'a mut EasyCurses,
     level: &'a Level,
 }
-impl BoardRenderer<'_> {
-    // Converts board position to absolute position.
-    fn board_position(&self, board_position: Vector<u8>) -> Vector<i32> {
-        Vector::new(board_position.x as i32 + 1, board_position.y as i32 + 1)
-    }
-
-    // Converts HUD row to absolute row.
-    fn row_num(&self, hud_row: u8) -> i32 {
-        (self.level.size.y + 2 + hud_row) as i32
-    }
-
-    fn render_space(&mut self, board_position: Vector<u8>, space: Space) {
+impl BoardRenderer for CursesRenderer<'_> {
+    fn draw_space(&mut self, board_position: Vector<u8>, space: Space) {
         let (color, c) = match space {
             Space::Wall => (Color::White, '#'),
             Space::Goal(piece) => (piece.to_color(), '#'),
@@ -97,7 +87,7 @@ impl BoardRenderer<'_> {
             .unwrap()
     }
 
-    fn render_piece(&mut self, board_position: Vector<u8>, piece: Piece, is_active: bool) {
+    fn draw_piece(&mut self, board_position: Vector<u8>, piece: Piece, is_active: bool) {
         self.curses
             .put_char(
                 self.board_position(board_position),
@@ -111,21 +101,21 @@ impl BoardRenderer<'_> {
         }
     }
 
-    fn update_active_piece(&mut self, piece: Piece) {
-        self.curses
-            .print_on_row(self.row_num(0), piece.to_color(), "Active: ")
-            .unwrap();
-        self.curses.print_char(acs::diamond()).unwrap();
+    fn slide_piece(&mut self, piece_slid: kuboble_core::PieceSlid) {
+        self.draw_space(
+            piece_slid.starting_position,
+            self.level.get_space(piece_slid.starting_position),
+        );
+        self.draw_piece(
+            piece_slid.starting_position
+                + piece_slid.muv.direction.as_vector() * piece_slid.distance.try_into().unwrap(),
+            piece_slid.muv.piece,
+            piece_slid.is_active,
+        );
     }
 
     fn update_num_moves(&mut self, num_moves: u8) {
-        self.curses
-            .print_on_row(
-                self.row_num(1),
-                Color::White,
-                format!("Moves: {}", num_moves),
-            )
-            .unwrap();
+        self.draw_num_moves(num_moves, false);
     }
 
     fn update_goal(&mut self, goal: u8) {
@@ -140,7 +130,10 @@ impl BoardRenderer<'_> {
                 Color::Yellow,
                 format!("You win with {}/5 stars!", rating.rating()).into(),
             ),
-            Alert::MaxMoves => (Color::Red, "At the maximum number of moves!".into()),
+            Alert::MaxMoves(n) => {
+                self.draw_num_moves(n, true);
+                return;
+            }
             Alert::Clear => (BACKGROUND_COLOR, "".into()),
         };
 
@@ -148,33 +141,33 @@ impl BoardRenderer<'_> {
             .print_on_row(self.row_num(3), color, msg)
             .unwrap();
     }
+}
+impl CursesRenderer<'_> {
+    // Converts board position to absolute position.
+    fn board_position(&self, board_position: Vector<u8>) -> Vector<i32> {
+        Vector::new(board_position.x as i32 + 1, board_position.y as i32 + 1)
+    }
 
-    pub fn execute_actions(&mut self, actions: impl Iterator<Item = RenderAction>) {
-        for action in actions {
-            match action {
-                RenderAction::DrawSpace { position, space } => self.render_space(position, space),
-                RenderAction::DrawPiece {
-                    position,
-                    piece,
-                    is_active,
-                } => self.render_piece(position, piece, is_active),
-                RenderAction::SlidePiece(slid) => {
-                    self.render_space(
-                        slid.starting_position,
-                        self.level.get_space(slid.starting_position),
-                    );
-                    self.render_piece(
-                        slid.starting_position
-                            + slid.muv.direction.as_vector() * slid.distance.try_into().unwrap(),
-                        slid.muv.piece,
-                        slid.is_active,
-                    );
-                }
-                RenderAction::UpdateNumMoves(n) => self.update_num_moves(n),
-                RenderAction::UpdateGoal(n) => self.update_goal(n),
-                RenderAction::Alert(a) => self.display_alert(a),
-            }
-        }
+    // Converts HUD row to absolute row.
+    fn row_num(&self, hud_row: u8) -> i32 {
+        (self.level.size.y + 2 + hud_row) as i32
+    }
+
+    fn update_active_piece(&mut self, piece: Piece) {
+        self.curses
+            .print_on_row(self.row_num(0), piece.to_color(), "Active: ")
+            .unwrap();
+        self.curses.print_char(acs::diamond()).unwrap();
+    }
+
+    fn draw_num_moves(&mut self, num_moves: u8, alert: bool) {
+        self.curses
+            .print_on_row(
+                self.row_num(1),
+                if alert { Color::Red } else { Color::White },
+                format!("Moves: {}", num_moves),
+            )
+            .unwrap();
     }
 
     pub fn wait_for_key(&mut self) -> Input {
@@ -195,9 +188,9 @@ fn main() {
     curses.clear_screen().unwrap();
 
     let mut board = Board::from(&LEVELS[0]);
-    let mut renderer = BoardRenderer::new(&mut curses, board.level());
+    let mut renderer = CursesRenderer::new(&mut curses, board.level());
 
-    renderer.execute_actions(board.render_actions());
+    board.render(&mut renderer);
 
     loop {
         let action = match renderer.wait_for_key() {
@@ -217,6 +210,6 @@ fn main() {
             }
         };
 
-        renderer.execute_actions(board.execute_action(action).render_actions().into_iter());
+        board.execute_action(action).render(&mut renderer);
     }
 }
