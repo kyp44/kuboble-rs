@@ -1,13 +1,19 @@
 use core::fmt::Write;
 use embedded_graphics::mono_font::{MonoFont, MonoTextStyle};
 use embedded_graphics::prelude::*;
-use embedded_graphics::primitives::{Circle, Rectangle, StyledDrawable};
+use embedded_graphics::primitives::{
+    Circle, PrimitiveStyleBuilder, Rectangle, StrokeAlignment, StyledDrawable,
+};
 use embedded_graphics::text::renderer::TextRenderer;
 use embedded_graphics::text::{Alignment, Baseline, Text, TextStyleBuilder};
 use embedded_graphics::{pixelcolor::Rgb565, primitives::PrimitiveStyle};
 use heapless::String;
 use kuboble_core::{Alert, BoardRenderer, Level, Piece, PieceSlid, Space, Vector};
+use pygamer::gpio::v2::PA15;
 use pygamer::gpio::Pin;
+use pygamer::hal::hal::digital::v1_compat::OldOutputPin;
+use pygamer::pac::TC3;
+use pygamer::timer::TimerCounter;
 use pygamer::{
     gpio::v2::{Alternate, Output, PushPull, C, PA00, PB05, PB13, PB14, PB15},
     pac::SERCOM4,
@@ -16,6 +22,8 @@ use pygamer::{
         Pad, SPIMaster4,
     },
 };
+use smart_leds::{SmartLedsWrite, RGB};
+use ws2812_timer_delay::Ws2812;
 
 type DisplayDriver = st7735_lcd::ST7735<
     SPIMaster4<
@@ -26,6 +34,8 @@ type DisplayDriver = st7735_lcd::ST7735<
     Pin<PB05, Output<PushPull>>,
     Pin<PA00, Output<PushPull>>,
 >;
+
+type NeoPixels = Ws2812<TimerCounter<TC3>, OldOutputPin<Pin<PA15, Output<PushPull>>>>;
 
 const SPACE_SIZE: u32 = 12;
 static SPACE_RECT: Rectangle = Rectangle::new(Point::new(0, 0), Size::new(SPACE_SIZE, SPACE_SIZE));
@@ -41,13 +51,21 @@ impl VectorExt for Vector<u8> {
 }
 
 trait PieceExt {
-    fn color(&self) -> Rgb565;
+    fn display_color(&self) -> Rgb565;
+    fn neopixel_color(&self) -> RGB<u8>;
 }
 impl PieceExt for Piece {
-    fn color(&self) -> Rgb565 {
+    fn display_color(&self) -> Rgb565 {
         match self {
             Piece::Green => Rgb565::GREEN,
             Piece::Orange => Rgb565::CSS_ORANGE,
+        }
+    }
+
+    fn neopixel_color(&self) -> RGB<u8> {
+        match self {
+            Piece::Green => RGB::new(0, 255, 0),
+            Piece::Orange => RGB::new(255, 0, 0),
         }
     }
 }
@@ -73,12 +91,17 @@ impl<S: TextRenderer<Color = Rgb565>, D: DrawTarget<Color = Rgb565>> TextExt<D> 
 
 pub struct LevelRenderer<'a> {
     display: &'a mut DisplayDriver,
+    neopixels: &'a mut NeoPixels,
     // TODO Should precalculate positions so we do not need this eventually.
     level: &'a Level,
     board_origin: Point,
 }
 impl<'a> LevelRenderer<'a> {
-    pub fn new(display: &'a mut DisplayDriver, level: &'a Level) -> Self {
+    pub fn new(
+        display: &'a mut DisplayDriver,
+        neopixels: &'a mut NeoPixels,
+        level: &'a Level,
+    ) -> Self {
         display.clear(Rgb565::BLACK).unwrap();
 
         let screen_center = Rectangle::new(Point::zero(), display.size()).center();
@@ -102,6 +125,7 @@ impl<'a> LevelRenderer<'a> {
 
         Self {
             display,
+            neopixels,
             level,
             board_origin: screen_center - level.size.into_point() * (SPACE_SIZE as i32 / 2),
         }
@@ -124,8 +148,14 @@ impl<'a> LevelRenderer<'a> {
                 .baseline(Baseline::Bottom)
                 .build(),
         )
-        .draw(self.display)
+        .draw_clear(self.display)
         .unwrap();
+    }
+
+    fn set_active_piece(&mut self, piece: Piece) {
+        self.neopixels
+            .write([RGB::new(0, 255, 0)].into_iter())
+            .unwrap();
     }
 
     // TODO: Just temporary
@@ -145,16 +175,23 @@ impl<'a> LevelRenderer<'a> {
 }
 impl BoardRenderer for LevelRenderer<'_> {
     fn draw_space(&mut self, board_position: Vector<u8>, space: Space) {
-        let color = match space {
-            Space::Void => Rgb565::BLACK,
-            Space::Wall => Rgb565::WHITE,
-            Space::Free => Rgb565::CSS_GRAY,
-            Space::Goal(piece) => piece.color(),
+        const SPACE_COLOR: Rgb565 = Rgb565::CSS_GRAY;
+
+        let style = match space {
+            Space::Void => PrimitiveStyle::with_fill(Rgb565::BLACK),
+            Space::Wall => PrimitiveStyle::with_fill(Rgb565::WHITE),
+            Space::Free => PrimitiveStyle::with_fill(SPACE_COLOR),
+            Space::Goal(piece) => PrimitiveStyleBuilder::new()
+                .stroke_color(piece.display_color())
+                .stroke_width(2)
+                .fill_color(SPACE_COLOR)
+                .stroke_alignment(StrokeAlignment::Inside)
+                .build(),
         };
 
         SPACE_RECT
             .translate(self.board_position(board_position))
-            .into_styled(PrimitiveStyle::with_fill(color))
+            .into_styled(style)
             .draw(self.display)
             .unwrap();
     }
@@ -162,9 +199,21 @@ impl BoardRenderer for LevelRenderer<'_> {
     fn draw_piece(&mut self, board_position: Vector<u8>, piece: Piece, is_active: bool) {
         // TODO: Is there a sprite system available to make this easier? May not be needed
         Circle::new(self.board_position(board_position), SPACE_SIZE)
-            .into_styled(PrimitiveStyle::with_fill(piece.color()))
+            .into_styled(PrimitiveStyle::with_fill(piece.display_color()))
             .draw(self.display)
             .unwrap();
+
+        if is_active {
+            Circle::with_center(
+                self.board_position(board_position) + SPACE_RECT.center(),
+                SPACE_SIZE / 2,
+            )
+            .into_styled(PrimitiveStyle::with_fill(Rgb565::WHITE))
+            .draw(self.display)
+            .unwrap();
+
+            self.set_active_piece(piece);
+        }
     }
 
     fn slide_piece(&mut self, piece_slid: PieceSlid) {

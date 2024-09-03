@@ -5,10 +5,10 @@ use kuboble_core::Direction;
 use pygamer::adc::Adc;
 use pygamer::hal::hal::blocking;
 use pygamer::pac::ADC1;
-use pygamer::pins::JoystickReader;
+use pygamer::pins::{ButtonReader, JoystickReader, Keys};
 use pygamer::prelude::*;
 
-const JOYSTICK_THRESH: i16 = 5;
+const JOYSTICK_THRESH: i16 = 1024;
 
 trait JoystickReaderExt {
     fn direction(&mut self, adc: &mut Adc<ADC1>) -> Option<Direction>;
@@ -43,12 +43,19 @@ pub enum ControlAction {
 pub struct Controller {
     joystick_adc: Adc<ADC1>,
     joystick_reader: JoystickReader,
+    button_reader: ButtonReader,
 }
 impl Controller {
-    pub fn new(joystick_adc: Adc<ADC1>, joystick_reader: JoystickReader) -> Self {
+    // TODO: Use derive-new for this?
+    pub fn new(
+        joystick_adc: Adc<ADC1>,
+        joystick_reader: JoystickReader,
+        button_reader: ButtonReader,
+    ) -> Self {
         Self {
             joystick_adc,
             joystick_reader,
+            button_reader,
         }
     }
     pub fn wait_for_action<D: _embedded_hal_blocking_delay_DelayMs<u32>>(
@@ -56,8 +63,19 @@ impl Controller {
         delay: &mut D,
     ) -> ControlAction {
         loop {
-        delay.delay_ms(50);
-         if let Soem( self.joystick_reader.read(&mut self.joystick_adc)
+            delay.delay_ms(50);
+            if let Some(direction) = self.joystick_reader.direction(&mut self.joystick_adc) {
+                break ControlAction::Move(direction);
+            }
+            for key in self.button_reader.events() {
+                return match key {
+                    Keys::SelectDown => ControlAction::Select,
+                    Keys::StartDown => ControlAction::Start,
+                    Keys::BDown => ControlAction::B,
+                    Keys::ADown => ControlAction::A,
+                    _ => continue,
+                };
+            }
         }
     }
 }

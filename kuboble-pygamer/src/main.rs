@@ -1,14 +1,17 @@
 #![no_std]
 #![no_main]
 
+use controls::ControlAction;
 use heapless::String;
-use kuboble_core::{Board, LEVELS};
+use kuboble_core::{Action, Board, LEVELS};
 use pac::{CorePeripherals, Peripherals};
 use pygamer::adc::Adc;
 use pygamer::clock::GenericClockController;
 use pygamer::delay::Delay;
 use pygamer::pac::gclk::pchctrl::GEN_A;
 use pygamer::prelude::_embedded_hal_blocking_delay_DelayMs;
+use pygamer::prelude::*;
+use pygamer::timer::TimerCounter;
 use pygamer::{entry, hal, pac, Pins};
 use renderer::LevelRenderer;
 
@@ -46,9 +49,22 @@ fn main() -> ! {
     // Setup board
     let mut board = Board::from(&LEVELS[0]);
 
+    // Set up the neo-pixels
+    // TODO: Some of this stuff needs moved to render, just test code.
+    use pygamer::prelude::*;
+    use smart_leds::{SmartLedsWrite, RGB};
+
+    let gclk0 = &clocks.gclk0();
+    let x = clocks.tc4_tc5(gclk0).unwrap();
+    let mut z = TimerCounter::tc4_(&x, peripherals.TC4, &mut peripherals.MCLK);
+    z.start(3.mhz());
+    //let z = hal::timer::SpinTimer::new(4);
+    let mut neopixels = pins.neopixel.init(z, &mut pins.port);
+
+    /*
     // Setup the board renderer and render the initial board
-    let mut renderer = LevelRenderer::new(&mut display, board.level());
-    board.render(&mut renderer);
+    let mut level_renderer = LevelRenderer::new(&mut display, &mut neopixels, board.level());
+    board.render(&mut level_renderer);
 
     // Setup the controller
     let adc = Adc::adc1(
@@ -57,21 +73,23 @@ fn main() -> ! {
         &mut clocks,
         GEN_A::GCLK11,
     );
-    let mut controller = controls::Controller::new(adc, pins.joystick.init(&mut pins.port));
+    let mut controller = controls::Controller::new(
+        adc,
+        pins.joystick.init(&mut pins.port),
+        pins.buttons.init(&mut pins.port),
+    );
 
     loop {
-        use core::fmt::Write;
+        let action = match controller.wait_for_action(&mut delay) {
+            ControlAction::Move(d) => Action::Move(d),
+            ControlAction::A => Action::ChangeActivePiece,
+            ControlAction::B => Action::UndoMove,
+            ControlAction::Start => Action::Restart,
+            ControlAction::Select => todo!(),
+        };
 
-        let (x, y) = controller.wait_for_action(&mut delay);
-        let mut fs: String<50> = String::new();
-        write!(fs, "{}, {}    ", x, y).unwrap();
-        renderer.print_test(&fs);
-    }
-    /*
-
-    // neopixels
-    let timer = SpinTimer::new(4);
-    let mut neopixel = pins.neopixel.init(timer, &mut pins.port);
+        board.execute_action(action).render(&mut level_renderer);
+    }*/
 
     let mut colors = [
         RGB::new(255, 0, 0),
@@ -82,9 +100,9 @@ fn main() -> ! {
     .cycle();
 
     loop {
-        neopixel.write(colors.clone().take(5)).unwrap();
+        neopixels.write(colors.clone().take(5)).unwrap();
 
         delay.delay_ms(3000u32);
         colors.next();
-    } */
+    }
 }

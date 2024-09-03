@@ -12,6 +12,7 @@ kuboble-core = {path = "../kuboble-core"}
 pygamer = {version = "0.9", features = ["panic_led"]}
 smart-leds = "0.3"
 st7735-lcd = "0.8"
+ws2812-timer-delay = "0.3"
 
 [profile.dev]
 debug = true 
