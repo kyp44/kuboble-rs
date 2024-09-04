@@ -5,6 +5,7 @@ version = "0.1.0"
 
 [dependencies]
 arrayvec = {version = "0.7.6", default-features = false}
+const_for = "0.1.4"
 itertools = {version = "0.13.0", default-features = false}
 strum = {version = "0.26.3", default-features = false, features = ["derive"]}
 

@@ -8,7 +8,7 @@ use embedded_graphics::text::renderer::TextRenderer;
 use embedded_graphics::text::{Alignment, Baseline, Text, TextStyleBuilder};
 use embedded_graphics::{pixelcolor::Rgb565, primitives::PrimitiveStyle};
 use heapless::String;
-use kuboble_core::{Alert, BoardRenderer, Level, Piece, PieceSlid, Space, Vector};
+use kuboble_core::{BoardRenderer, Level, LevelRating, Piece, PieceSlid, Space, Vector};
 use pygamer::gpio::v2::PA15;
 use pygamer::gpio::Pin;
 use pygamer::hal::hal::digital::v1_compat::OldOutputPin;
@@ -216,7 +216,7 @@ impl BoardRenderer for LevelRenderer<'_> {
         }
     }
 
-    fn slide_piece(&mut self, piece_slid: PieceSlid) {
+    fn slide_piece(&mut self, piece_slid: PieceSlid, is_active: bool) {
         // TODO: Animate this with constant slide time? Observe how the web version does it
         self.draw_space(
             piece_slid.starting_position,
@@ -226,12 +226,12 @@ impl BoardRenderer for LevelRenderer<'_> {
             piece_slid.starting_position
                 + piece_slid.muv.direction.as_vector() * piece_slid.distance.try_into().unwrap(),
             piece_slid.muv.piece,
-            piece_slid.is_active,
+            is_active,
         );
     }
 
-    fn update_num_moves(&mut self, num_moves: u8) {
-        self.draw_num_moves(num_moves, false);
+    fn update_num_moves(&mut self, num_moves: u8, at_maximum: bool) {
+        self.draw_num_moves(num_moves, at_maximum);
     }
 
     fn update_goal(&mut self, goal: u8) {
@@ -252,15 +252,7 @@ impl BoardRenderer for LevelRenderer<'_> {
         .unwrap();
     }
 
-    fn display_alert(&mut self, alert: Alert) {
-        match alert {
-            Alert::Win(_) => {
-                // TODO
-            }
-            Alert::MaxMoves(nm) => self.draw_num_moves(nm, true),
-            Alert::Clear => {
-                // TODO if anything, may want to just completely remove this alert!
-            }
-        }
+    fn notify_win(&mut self, rating: LevelRating) {
+        //todo!()
     }
 }
