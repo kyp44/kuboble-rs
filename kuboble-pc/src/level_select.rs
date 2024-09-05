@@ -1,10 +1,10 @@
-use crate::{ControlAction, CursesExt};
-use easycurses::{Color, EasyCurses, Input};
+use crate::{ControlAction, CursesExt, BACKGROUND_COLOR};
+use easycurses::{Color, ColorPair, EasyCurses, Input};
 use kuboble_core::{
     board::Direction as KeyDirection,
     level_select::{
         render::{self, LevelSelectRenderer},
-        Action, Direction, LevelInfo, LevelSelector, LevelSlotInfo,
+        Action, Direction, Filter, LevelInfo, LevelSelector, LevelSlotInfo,
     },
     Level, LevelRating,
 };
@@ -15,12 +15,17 @@ struct CursesRenderer<'a> {
 impl<'a> CursesRenderer<'a> {
     pub fn new(curses: &'a mut EasyCurses) -> Self {
         curses.clear_screen();
+        curses.print_on_row(0, Color::White, "Filter:");
 
         Self { curses }
     }
 
     pub fn wait_for_key(&mut self) -> ControlAction {
         self.curses.wait_for_key()
+    }
+
+    fn draw_stars(&mut self, num: u8, den: u8) {
+        todo!()
     }
 }
 impl LevelSelectRenderer for CursesRenderer<'_> {
@@ -49,7 +54,49 @@ impl LevelSelectRenderer for CursesRenderer<'_> {
     }
 
     fn update_filter(&mut self, filter: kuboble_core::level_select::Filter, is_active: bool) {
-        // TODO
+        let background = if is_active {
+            Color::White
+        } else {
+            BACKGROUND_COLOR
+        };
+
+        const START_COL: i32 = 8;
+        const SPACE_SIZE: i32 = 1;
+
+        // TODO: Switch to function to draw stars!
+        match filter {
+            Filter::All => {
+                self.curses.move_rc(0, START_COL).unwrap();
+                self.curses
+                    .set_color_pair(ColorPair::new(Color::Yellow, background));
+                self.curses.print("All").unwrap();
+            }
+            Filter::Incomplete => {
+                self.curses.move_rc(0, START_COL + 3 + SPACE_SIZE).unwrap();
+                self.curses
+                    .set_color_pair(ColorPair::new(Color::Blue, background));
+                self.curses.print("**").unwrap();
+            }
+            Filter::PartiallyComplete => {
+                self.curses
+                    .move_rc(0, START_COL + 5 + 2 * SPACE_SIZE)
+                    .unwrap();
+                self.curses
+                    .set_color_pair(ColorPair::new(Color::Yellow, background));
+                self.curses.print("*").unwrap();
+                self.curses
+                    .set_color_pair(ColorPair::new(Color::Blue, background));
+                self.curses.print("*").unwrap();
+            }
+            Filter::Optimal => {
+                self.curses
+                    .move_rc(0, START_COL + 7 + 3 * SPACE_SIZE)
+                    .unwrap();
+                self.curses
+                    .set_color_pair(ColorPair::new(Color::Yellow, background));
+                self.curses.print("**").unwrap();
+            }
+        }
     }
 }
 

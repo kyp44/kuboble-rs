@@ -77,7 +77,7 @@ pub enum Direction {
 }
 
 // TODO: Need iterator?
-#[derive(Clone, Copy, Default, PartialEq, Eq, EnumIter)]
+#[derive(Clone, Copy, Default, Hash, PartialEq, Eq, EnumIter)]
 pub enum Filter {
     #[default]
     All,
