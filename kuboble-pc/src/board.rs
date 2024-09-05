@@ -1,26 +1,10 @@
-use crate::{ControlAction, CursesExt};
-use derive_new::new;
-use easycurses::{
-    constants::acs::{self, pi},
-    Color, EasyCurses, Input,
-};
+use crate::{colors, ControlAction, CursesExt, PieceExt};
+use easycurses::{constants::acs, EasyCurses};
 use kuboble_core::{
-    board::{render::BoardRenderer, Action, Board, Direction, PieceSlid},
-    level_select::LevelInfo,
-    Level, LevelRating, Piece, Space, Vector,
+    board::{render::BoardRenderer, Action, Board, PieceSlid},
+    level_select::{LevelInfo, LevelStatus},
+    Level, Piece, Space, Vector,
 };
-
-trait PieceExt {
-    fn to_color(&self) -> Color;
-}
-impl PieceExt for Piece {
-    fn to_color(&self) -> Color {
-        match self {
-            Piece::Green => Color::Green,
-            Piece::Orange => Color::Red,
-        }
-    }
-}
 
 struct CursesRenderer<'a> {
     curses: &'a mut EasyCurses,
@@ -57,7 +41,7 @@ impl<'a> CursesRenderer<'a> {
         self.curses
             .print_on_row(
                 self.row_num(1),
-                if alert { Color::Red } else { Color::White },
+                if alert { colors::ALERT } else { colors::MAIN },
                 format!("Moves: {}", num_moves),
             )
             .unwrap();
@@ -70,9 +54,9 @@ impl<'a> CursesRenderer<'a> {
 impl BoardRenderer for CursesRenderer<'_> {
     fn draw_space(&mut self, board_position: Vector<u8>, space: Space) {
         let (color, c) = match space {
-            Space::Wall => (Color::White, '#'),
+            Space::Wall => (colors::MAIN, '#'),
             Space::Goal(piece) => (piece.to_color(), '#'),
-            _ => (Color::White, ' '),
+            _ => (colors::MAIN, ' '),
         };
 
         self.curses
@@ -110,26 +94,30 @@ impl BoardRenderer for CursesRenderer<'_> {
 
     fn update_constants(&mut self, level_num: u16, goal: u8) {
         self.curses
-            .print_on_row(0, Color::White, format!("Level {level_num}"))
+            .print_on_row(0, colors::MAIN, format!("Level {level_num}"))
             .unwrap();
 
         self.curses
-            .print_on_row(self.row_num(2), Color::White, format!("Goal: {}", goal))
+            .print_on_row(self.row_num(2), colors::MAIN, format!("Goal: {}", goal))
             .unwrap();
     }
 
-    fn notify_win(&mut self, rating: kuboble_core::LevelRating) {
+    fn notify_win(&mut self, level_status: LevelStatus) {
         self.curses
             .print_on_row(
                 self.row_num(3),
-                Color::Yellow,
-                format!("You win with {}/5 stars!", rating.num_stars()),
+                colors::WIN_NOTIFICATION,
+                "You win with a rating of: ",
             )
+            .unwrap();
+
+        self.curses
+            .draw_rating(level_status.rating(), colors::BACKGROUND)
             .unwrap();
     }
 }
 
-pub fn play_board(curses: &mut EasyCurses, level_info: &LevelInfo) -> Option<LevelRating> {
+pub fn play_board(curses: &mut EasyCurses, level_info: &LevelInfo) -> Option<LevelStatus> {
     let mut board = Board::new(&level_info);
     let mut renderer = CursesRenderer::new(curses, level_info.level);
 
@@ -142,25 +130,19 @@ pub fn play_board(curses: &mut EasyCurses, level_info: &LevelInfo) -> Option<Lev
             ControlAction::Tab | ControlAction::Proceed => Action::ChangeActivePiece,
             ControlAction::Backspace => Action::UndoMove,
             ControlAction::Restart => Action::Restart,
-            _ => {
-                continue;
-            }
         };
 
-        // TODO: Need to check if we win!
         let board_changed = board.execute_action(action);
-
         board_changed.render(&mut renderer);
 
-        if board_changed.winning_rating.is_some() {
-            // Just wait for the enter key then return
+        if board_changed.winning_status.is_some() {
             loop {
                 if renderer.wait_for_key() == ControlAction::Proceed {
                     break;
                 }
             }
 
-            break board_changed.winning_rating;
+            break board_changed.winning_status;
         }
     }
 }

@@ -1,0 +1,17 @@
+{
+	"New level": {
+		"scope": "rust",
+		"prefix": "new-level",
+		"body": [
+			"// Level ",
+			"level! {",
+			"	spaces: &[",
+			"		\"\"",
+			"	],",
+			"	positions: [],",
+			"	optimal: ,",
+			"},"
+		],
+		"description": "Insert a new Kuboble level"
+	}
+}

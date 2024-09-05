@@ -1,16 +1,17 @@
-use core::default;
+use core::{cmp::Ordering, mem::discriminant};
 
 use crate::{
     board::Move,
     levels::{LEVELS, MAX_OPTIMAL_MOVES, NUM_LEVELS},
-    Level, LevelRating, Vector,
+    Level, LevelRating,
 };
 use arrayvec::ArrayVec;
+use serde::{Deserialize, Serialize};
 use strum::EnumIter;
 
 pub mod render;
 
-#[derive(Default)]
+#[derive(Clone, Debug, Default, Eq, Serialize, Deserialize)]
 pub enum LevelStatus {
     #[default]
     Incomplete,
@@ -34,6 +35,39 @@ impl LevelStatus {
         }
     }
 }
+impl PartialEq for LevelStatus {
+    fn eq(&self, other: &Self) -> bool {
+        if let (Self::Complete(rl), Self::Complete(rr)) = (self, other) {
+            rl == rr
+        } else {
+            discriminant(self) == discriminant(other)
+        }
+    }
+}
+impl PartialOrd for LevelStatus {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for LevelStatus {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match self {
+            LevelStatus::Incomplete => match other {
+                LevelStatus::Incomplete => Ordering::Equal,
+                _ => Ordering::Less,
+            },
+            LevelStatus::Complete(rl) => match other {
+                LevelStatus::Incomplete => Ordering::Greater,
+                LevelStatus::Complete(rr) => rl.cmp(rr),
+                LevelStatus::Optimal(_) => Ordering::Less,
+            },
+            LevelStatus::Optimal(_) => match other {
+                LevelStatus::Optimal(_) => Ordering::Equal,
+                _ => Ordering::Greater,
+            },
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct LevelInfo {
@@ -47,8 +81,7 @@ impl LevelInfo {
     }
 }
 
-// TODO: Serialization
-#[derive(Default)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct LevelProgress {
     // TODO: For serialization purposes, does this need to be a an ArrayVec?
     level_statuses: [LevelStatus; NUM_LEVELS],
@@ -64,9 +97,14 @@ impl LevelProgress {
         }
     }
 
-    #[inline]
-    pub fn update_status(&mut self, level_idx: usize, level_status: LevelStatus) {
-        self.level_statuses[level_idx] = level_status;
+    // Only updates the status if it is better and returns whether it was updated
+    pub fn attempt_status_update(&mut self, level_idx: usize, new_status: LevelStatus) -> bool {
+        if new_status > self.level_statuses[level_idx] {
+            self.level_statuses[level_idx] = new_status;
+            true
+        } else {
+            false
+        }
     }
 }
 
@@ -108,6 +146,7 @@ impl Filter {
 pub enum Action {
     ChangeActiveLevel(Direction),
     ChangeActiveFilter(Direction),
+    ActiveLevelCompleted(LevelStatus),
 }
 
 pub struct LevelSlotInfo {
@@ -117,17 +156,18 @@ pub struct LevelSlotInfo {
 }
 
 pub enum LevelSelectorChanged {
+    UpdateSlot(LevelSlotInfo),
     SlotsSwap([LevelSlotInfo; 2]),
     Filter { inactive: Filter, active: Filter },
 }
 
-pub struct LevelSelector<'a> {
+pub struct LevelSelector<'a, const W: usize> {
     level_progress: &'a mut LevelProgress,
     active_level_idx: usize,
     active_filter: Filter,
     window_size: u8,
 }
-impl<'a> LevelSelector<'a> {
+impl<'a, const W: usize> LevelSelector<'a, W> {
     pub fn new(level_progress: &'a mut LevelProgress, window_size: u8) -> Self {
         Self {
             level_progress,
@@ -181,6 +221,22 @@ impl<'a> LevelSelector<'a> {
                     active: self.active_filter,
                 })
             }
+            Action::ActiveLevelCompleted(new_status) => {
+                self.level_progress
+                    .attempt_status_update(self.active_level_idx, new_status)
+                    .then(|| {
+                        // Need to update the active level
+                        LevelSelectorChanged::UpdateSlot(LevelSlotInfo {
+                            level_info: self.level_progress.level_info(self.active_level_idx),
+                            position: self.active_level_idx.try_into().unwrap(),
+                            is_active: true,
+                        })
+
+                        // TODO Will need to unlock another level probably.
+                    })
+            }
         }
     }
 }
+
+// TODO Write some tests for these items, especially the order and equality of LevelStatus

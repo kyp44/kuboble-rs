@@ -1,4 +1,7 @@
-use crate::{level_select::LevelInfo, Level, LevelRating, Piece, PieceMap, Space, Vector};
+use crate::{
+    level_select::{LevelInfo, LevelStatus},
+    Level, LevelRating, Piece, PieceMap, Space, Vector,
+};
 use arrayvec::ArrayVec;
 use core::{mem::variant_count, ops::Neg};
 use strum::IntoEnumIterator;
@@ -195,7 +198,7 @@ pub enum PiecesChanged<'a> {
 pub struct BoardChanged<'a> {
     pub pieces_changed: Option<PiecesChanged<'a>>,
     pub num_moves_changed: Option<u8>,
-    pub winning_rating: Option<LevelRating>,
+    pub winning_status: Option<LevelStatus>,
     pub at_max_moves: bool,
 }
 
@@ -231,10 +234,16 @@ impl<'a> Board<'a> {
         self.move_stack.len().try_into().unwrap()
     }
 
-    fn winning_rating(&self) -> Option<LevelRating> {
-        self.board_state
-            .is_winning()
-            .then(|| LevelRating::new(self.level().optimal_moves, self.num_moves()))
+    fn winning_status(&self) -> Option<LevelStatus> {
+        self.board_state.is_winning().then(|| {
+            let rating = LevelRating::new(self.level().optimal_moves, self.num_moves());
+
+            if rating.is_optimal() {
+                LevelStatus::Optimal(self.move_stack.iter().map(|s| s.muv).collect())
+            } else {
+                LevelStatus::Complete(rating)
+            }
+        })
     }
 
     pub fn execute_action(&mut self, action: Action) -> BoardChanged {
@@ -288,7 +297,7 @@ impl<'a> Board<'a> {
                 old_active_piece,
             });
             board_changed.num_moves_changed = Some(self.num_moves());
-            board_changed.winning_rating = self.winning_rating();
+            board_changed.winning_status = self.winning_status();
         }
         board_changed.at_max_moves = self.move_stack.is_full();
 

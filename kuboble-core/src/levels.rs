@@ -71,7 +71,7 @@ macro_rules! level {
     }
 }
 
-pub const NUM_LEVELS: usize = 10;
+pub const NUM_LEVELS: usize = 15;
 pub const MAX_OPTIMAL_MOVES: usize = 10;
 
 pub static LEVELS: [Level; NUM_LEVELS] = [
@@ -194,5 +194,65 @@ pub static LEVELS: [Level; NUM_LEVELS] = [
         ],
         positions: [(3, 3), (4, 3)],
         optimal: 8,
+    },
+    // Level 11
+    level! {
+        spaces: &[
+            "_####_",
+            "##  ##",
+            "# GO #",
+            "##   #",
+            "_#####",
+        ],
+        positions: [(3, 3), (4, 3)],
+        optimal: 8,
+    },
+    // Level 12
+    level! {
+        spaces: &[
+            "######",
+            "# G  #",
+            "##   #",
+            "#  G #",
+            "######",
+        ],
+        positions: [(1, 1), (2, 1)],
+        optimal: 8,
+    },
+    // Level 13
+    level! {
+        spaces: &[
+            "_#####",
+            "_# G #",
+            "###  #",
+            "# O  #",
+            "######",
+        ],
+        positions: [(3, 1), (4, 1)],
+        optimal: 8,
+    },
+    // Level 14
+    level! {
+        spaces: &[
+            "_####_",
+            "##  ##",
+            "# OG #",
+            "#    #",
+            "######",
+        ],
+        positions: [(3, 3), (4, 3)],
+        optimal: 9,
+    },
+    // Level 15
+    level! {
+        spaces: &[
+            "######",
+            "# G  #",
+            "## # #",
+            "#  O #",
+            "######",
+        ],
+        positions: [(1, 1), (2, 1)],
+        optimal: 10,
     },
 ];

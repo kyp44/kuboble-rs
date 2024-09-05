@@ -1,12 +1,14 @@
-use crate::{ControlAction, CursesExt, BACKGROUND_COLOR};
-use easycurses::{Color, ColorPair, EasyCurses, Input};
+use crate::{
+    colors::{self, SELECTED_MAIN},
+    ControlAction, CursesExt,
+};
+use easycurses::{ColorPair, EasyCurses};
 use kuboble_core::{
     board::Direction as KeyDirection,
     level_select::{
-        render::{self, LevelSelectRenderer},
-        Action, Direction, Filter, LevelInfo, LevelSelector, LevelSlotInfo,
+        render::LevelSelectRenderer, Action, Direction, Filter, LevelInfo, LevelSelector,
+        LevelSlotInfo,
     },
-    Level, LevelRating,
 };
 
 struct CursesRenderer<'a> {
@@ -15,7 +17,7 @@ struct CursesRenderer<'a> {
 impl<'a> CursesRenderer<'a> {
     pub fn new(curses: &'a mut EasyCurses) -> Self {
         curses.clear_screen();
-        curses.print_on_row(0, Color::White, "Filter:");
+        curses.print_on_row(0, colors::MAIN, "Filter:");
 
         Self { curses }
     }
@@ -23,86 +25,87 @@ impl<'a> CursesRenderer<'a> {
     pub fn wait_for_key(&mut self) -> ControlAction {
         self.curses.wait_for_key()
     }
-
-    fn draw_stars(&mut self, num: u8, den: u8) {
-        todo!()
-    }
 }
 impl LevelSelectRenderer for CursesRenderer<'_> {
     fn draw_level_slot(&mut self, level_slot_info: &LevelSlotInfo) {
         let level_info = &level_slot_info.level_info;
         let user_size = level_info.level.user_size();
 
+        // NOTE: Evidently we cannot just get the background color from a pair, which is annoying
+        let background = if level_slot_info.is_active {
+            colors::SELECTED_BACKGROUND
+        } else {
+            colors::BACKGROUND
+        };
+        let main_pair = if level_slot_info.is_active {
+            colors::selected(SELECTED_MAIN)
+        } else {
+            colors::basic(colors::MAIN)
+        };
+
+        // Print level number
         self.curses
-            .print_on_row(
-                level_slot_info.position as i32 + 2,
-                if level_slot_info.is_active {
-                    Color::Green
-                } else {
-                    Color::White
-                },
-                format!(
-                    "Level {:<8}{}/{:<8}{}x{}",
-                    level_info.user_num(),
-                    level_info.rating.num_stars(),
-                    LevelRating::maximum_possible().num_stars(),
-                    user_size.x,
-                    user_size.y,
-                ),
-            )
-            .unwrap()
+            .move_rc(level_slot_info.position as i32 + 2, 0)
+            .unwrap();
+        self.curses.set_color_pair(main_pair);
+        self.curses
+            .print(format!("Level {:<8}", level_info.user_num(),))
+            .unwrap();
+
+        // Print rating
+        self.curses
+            .draw_rating(level_info.rating, background)
+            .unwrap();
+
+        // Print user size
+        self.curses.set_color_pair(main_pair);
+        self.curses
+            .print(format!("{:>8}x{}", user_size.x, user_size.y))
+            .unwrap();
     }
 
-    fn update_filter(&mut self, filter: kuboble_core::level_select::Filter, is_active: bool) {
+    fn update_filter(&mut self, filter: Filter, is_active: bool) {
         let background = if is_active {
-            Color::White
+            colors::MAIN
         } else {
-            BACKGROUND_COLOR
+            colors::BACKGROUND
         };
 
         const START_COL: i32 = 8;
         const SPACE_SIZE: i32 = 1;
 
-        // TODO: Switch to function to draw stars!
         match filter {
             Filter::All => {
                 self.curses.move_rc(0, START_COL).unwrap();
                 self.curses
-                    .set_color_pair(ColorPair::new(Color::Yellow, background));
+                    .set_color_pair(ColorPair::new(colors::STAR_ACTIVE, background));
                 self.curses.print("All").unwrap();
             }
             Filter::Incomplete => {
                 self.curses.move_rc(0, START_COL + 3 + SPACE_SIZE).unwrap();
-                self.curses
-                    .set_color_pair(ColorPair::new(Color::Blue, background));
-                self.curses.print("**").unwrap();
+                self.curses.draw_stars(0, 2, background).unwrap();
             }
             Filter::PartiallyComplete => {
                 self.curses
                     .move_rc(0, START_COL + 5 + 2 * SPACE_SIZE)
                     .unwrap();
-                self.curses
-                    .set_color_pair(ColorPair::new(Color::Yellow, background));
-                self.curses.print("*").unwrap();
-                self.curses
-                    .set_color_pair(ColorPair::new(Color::Blue, background));
-                self.curses.print("*").unwrap();
+                self.curses.draw_stars(1, 2, background).unwrap();
             }
             Filter::Optimal => {
                 self.curses
                     .move_rc(0, START_COL + 7 + 3 * SPACE_SIZE)
                     .unwrap();
-                self.curses
-                    .set_color_pair(ColorPair::new(Color::Yellow, background));
-                self.curses.print("**").unwrap();
+                self.curses.draw_stars(2, 2, background).unwrap();
             }
         }
     }
 }
 
+const LEVEL_WINDOW_SIZE: usize = 5;
+
 pub fn select_level(
     curses: &mut EasyCurses,
-    level_selector: &mut LevelSelector,
+    level_selector: &mut LevelSelector<LEVEL_WINDOW_SIZE>,
 ) -> Option<LevelInfo> {
     let mut renderer = CursesRenderer::new(curses);
     level_selector.render(&mut renderer);

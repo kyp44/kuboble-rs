@@ -5,6 +5,7 @@
 
 use core::mem::variant_count;
 use itertools::iproduct;
+use serde::{Deserialize, Serialize};
 use strum::EnumIter;
 
 pub mod board;
@@ -91,7 +92,7 @@ impl Level {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct LevelRating(u8);
 impl LevelRating {
     pub fn new(goal: u8, num_moves: u8) -> Self {
@@ -106,10 +107,17 @@ impl LevelRating {
         })
     }
 
-    pub fn complete(&self) -> bool {
+    #[inline]
+    pub fn is_complete(&self) -> bool {
         self.0 > 0
     }
 
+    #[inline]
+    pub fn is_optimal(&self) -> bool {
+        *self == Self::maximum_possible()
+    }
+
+    #[inline]
     pub fn num_stars(&self) -> u8 {
         self.0
     }

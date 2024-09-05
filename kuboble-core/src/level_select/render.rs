@@ -1,5 +1,5 @@
-use super::{Filter, LevelInfo, LevelSelector, LevelSelectorChanged, LevelSlotInfo};
-use crate::{board::render, levels::NUM_LEVELS};
+use super::{Filter, LevelSelector, LevelSelectorChanged, LevelSlotInfo};
+use crate::levels::NUM_LEVELS;
 use strum::IntoEnumIterator;
 
 pub trait LevelSelectRenderer {
@@ -7,7 +7,7 @@ pub trait LevelSelectRenderer {
     fn update_filter(&mut self, filter: Filter, is_active: bool);
 }
 
-impl LevelSelector<'_> {
+impl<const W: usize> LevelSelector<'_, W> {
     pub fn render<R: LevelSelectRenderer>(&self, renderer: &mut R) {
         // Draw filters
         for filter in Filter::iter() {
@@ -27,6 +27,9 @@ impl LevelSelector<'_> {
 impl LevelSelectorChanged {
     pub fn render<R: LevelSelectRenderer>(&self, renderer: &mut R) {
         match self {
+            LevelSelectorChanged::UpdateSlot(slot) => {
+                renderer.draw_level_slot(slot);
+            }
             LevelSelectorChanged::SlotsSwap(changed_slots) => {
                 for change in changed_slots {
                     renderer.draw_level_slot(change)

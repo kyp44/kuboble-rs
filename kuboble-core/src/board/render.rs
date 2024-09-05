@@ -1,5 +1,5 @@
 use super::{Board, BoardChanged, PieceSlid, PiecesChanged};
-use crate::{LevelRating, Piece, Space, Vector};
+use crate::{level_select::LevelStatus, Piece, Space, Vector};
 use strum::IntoEnumIterator;
 
 #[cfg(feature = "std")]
@@ -11,7 +11,7 @@ pub trait BoardRenderer {
     fn slide_piece(&mut self, piece_slid: &PieceSlid, is_active: bool);
     fn update_num_moves(&mut self, num_moves: u8, at_maximum: bool);
     fn update_constants(&mut self, level_num: u16, goal: u8);
-    fn notify_win(&mut self, rating: LevelRating);
+    fn notify_win(&mut self, level_status: LevelStatus);
 }
 
 impl Board<'_> {
@@ -38,8 +38,8 @@ impl Board<'_> {
         renderer.update_constants(self.level_num, level.optimal_moves);
 
         // Display alert if applicable
-        if let Some(rating) = self.winning_rating() {
-            renderer.notify_win(rating);
+        if let Some(status) = self.winning_status() {
+            renderer.notify_win(status);
         }
     }
 }
@@ -89,8 +89,8 @@ impl BoardChanged<'_> {
             renderer.update_num_moves(n, self.at_max_moves);
         }
 
-        if let Some(rating) = self.winning_rating {
-            renderer.notify_win(rating);
+        if let Some(status) = self.winning_status.clone() {
+            renderer.notify_win(status);
         }
     }
 }
