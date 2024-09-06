@@ -1,0 +1,12 @@
+[package]
+edition = "2021"
+name = "level-converter"
+version = "0.1.0"
+
+[dependencies]
+anyhow = "1.0.86"
+clap = {version = "4.5.17", features = ["derive"]}
+euclid = "0.22.11"
+kuboble-core = {path = "../kuboble-core", features = ["std"]}
+serde = {version = "1.0.210", features = ["derive"]}
+serde_json = "1.0.128"

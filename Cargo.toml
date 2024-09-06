@@ -1,9 +1,11 @@
 [workspace]
 # This is excluded because it evidently cannot be compiled as a package in the workspace because it is `no_std`.
 # Doing so raises an error about panic unwinding and it is unclear how to prevent this.
+default-members = ["kuboble-pc"]
 exclude = ["kuboble-pygamer"]
 members = [
   "kuboble-core",
   "kuboble-pc",
+  "level-converter",
 ]
 resolver = "2"
