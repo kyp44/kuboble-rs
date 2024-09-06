@@ -1,19 +1,19 @@
 use core::fmt::Write;
-use embedded_graphics::mono_font::{MonoFont, MonoTextStyle};
+use embedded_graphics::mono_font::{MonoFont, MonoTextStyle, MonoTextStyleBuilder};
 use embedded_graphics::prelude::*;
-use embedded_graphics::primitives::{
-    Circle, PrimitiveStyleBuilder, Rectangle, StrokeAlignment, StyledDrawable,
-};
-use embedded_graphics::text::renderer::TextRenderer;
+use embedded_graphics::primitives::{Circle, PrimitiveStyleBuilder, Rectangle, StrokeAlignment};
 use embedded_graphics::text::{Alignment, Baseline, Text, TextStyleBuilder};
 use embedded_graphics::{pixelcolor::Rgb565, primitives::PrimitiveStyle};
+use embedded_graphics_framebuf::FrameBuf;
 use heapless::String;
-use kuboble_core::{BoardRenderer, Level, LevelRating, Piece, PieceSlid, Space, Vector};
+use kuboble_core::board::render::BoardRenderer;
+use kuboble_core::board::PieceSlid;
+use kuboble_core::level_select::LevelStatus;
+use kuboble_core::{Level, Piece, Space, Vector};
 use pygamer::gpio::v2::PA15;
 use pygamer::gpio::Pin;
 use pygamer::hal::hal::digital::v1_compat::OldOutputPin;
-use pygamer::pac::TC3;
-use pygamer::timer::TimerCounter;
+use pygamer::hal::hal::timer::{CountDown, Periodic};
 use pygamer::{
     gpio::v2::{Alternate, Output, PushPull, C, PA00, PB05, PB13, PB14, PB15},
     pac::SERCOM4,
@@ -35,7 +35,7 @@ type DisplayDriver = st7735_lcd::ST7735<
     Pin<PA00, Output<PushPull>>,
 >;
 
-type NeoPixels = Ws2812<TimerCounter<TC3>, OldOutputPin<Pin<PA15, Output<PushPull>>>>;
+type NeoPixels<T> = Ws2812<T, OldOutputPin<Pin<PA15, Output<PushPull>>>>;
 
 const SPACE_SIZE: u32 = 12;
 static SPACE_RECT: Rectangle = Rectangle::new(Point::new(0, 0), Size::new(SPACE_SIZE, SPACE_SIZE));
@@ -64,70 +64,36 @@ impl PieceExt for Piece {
 
     fn neopixel_color(&self) -> RGB<u8> {
         match self {
-            Piece::Green => RGB::new(0, 255, 0),
-            Piece::Orange => RGB::new(255, 0, 0),
+            Piece::Green => RGB::new(0, 5, 0),
+            Piece::Orange => RGB::new(5, 3, 0),
         }
     }
 }
 
-trait TextExt<D: DrawTarget> {
-    // Draws the text, clearing the background first.
-    fn draw_clear(&self, target: &mut D) -> Result<Point, D::Error>;
-}
-impl<S: TextRenderer<Color = Rgb565>, D: DrawTarget<Color = Rgb565>> TextExt<D> for Text<'_, S> {
-    fn draw_clear(&self, target: &mut D) -> Result<Point, D::Error> {
-        //D: DrawTarget<Color = Self::Color>
-
-        // First clear the background
-        self.character_style
-            .measure_string(self.text, self.position, self.text_style.baseline)
-            .bounding_box
-            .draw_styled(&PrimitiveStyle::with_fill(Rgb565::BLACK), target)?;
-
-        // Draw the text
-        self.draw(target)
-    }
-}
-
-pub struct LevelRenderer<'a> {
+pub struct LevelRenderer<'a, T> {
     display: &'a mut DisplayDriver,
-    neopixels: &'a mut NeoPixels,
-    // TODO Should precalculate positions so we do not need this eventually.
-    level: &'a Level,
+    neopixels: &'a mut NeoPixels<T>,
     board_origin: Point,
+    display_center: Point,
+    // This makes updating the number of moves more efficient.
+    at_max_moves: bool,
 }
-impl<'a> LevelRenderer<'a> {
+impl<'a, T: CountDown + Periodic> LevelRenderer<'a, T> {
     pub fn new(
         display: &'a mut DisplayDriver,
-        neopixels: &'a mut NeoPixels,
+        neopixels: &'a mut NeoPixels<T>,
         level: &'a Level,
     ) -> Self {
         display.clear(Rgb565::BLACK).unwrap();
 
-        let screen_center = Rectangle::new(Point::zero(), display.size()).center();
-
-        // Draw level number
-        let mut fs: String<9> = String::new();
-        // TODO: get actual level number in here!
-        write!(fs, "Level {}", 1).unwrap();
-
-        Text::with_text_style(
-            &fs,
-            Point::new(screen_center.x, 0),
-            MonoTextStyle::new(&FONT, Rgb565::WHITE),
-            TextStyleBuilder::new()
-                .alignment(Alignment::Center)
-                .baseline(Baseline::Top)
-                .build(),
-        )
-        .draw(display)
-        .unwrap();
+        let display_center = Rectangle::new(Point::zero(), display.size()).center();
 
         Self {
             display,
             neopixels,
-            level,
-            board_origin: screen_center - level.size.into_point() * (SPACE_SIZE as i32 / 2),
+            board_origin: display_center - level.size.into_point() * (SPACE_SIZE as i32 / 2),
+            display_center,
+            at_max_moves: true,
         }
     }
 
@@ -135,26 +101,11 @@ impl<'a> LevelRenderer<'a> {
         self.board_origin + board_position.into_point() * SPACE_SIZE as i32
     }
 
-    fn draw_num_moves(&mut self, num_moves: u8, alert: bool) {
-        let mut fs: String<12> = String::new();
-        write!(fs, "Moves: {}  ", num_moves).unwrap();
-
-        Text::with_text_style(
-            &fs,
-            Point::new(0, self.display.size().height as i32 - 1),
-            MonoTextStyle::new(&FONT, if alert { Rgb565::RED } else { Rgb565::WHITE }),
-            TextStyleBuilder::new()
-                .alignment(Alignment::Left)
-                .baseline(Baseline::Bottom)
-                .build(),
-        )
-        .draw_clear(self.display)
-        .unwrap();
-    }
-
     fn set_active_piece(&mut self, piece: Piece) {
+        let colors = [piece.neopixel_color(), RGB::new(0, 0, 0)];
+
         self.neopixels
-            .write([RGB::new(0, 255, 0)].into_iter())
+            .write(colors.into_iter().cycle().take(5))
             .unwrap();
     }
 
@@ -169,11 +120,11 @@ impl<'a> LevelRenderer<'a> {
                 .baseline(Baseline::Top)
                 .build(),
         )
-        .draw_clear(self.display)
+        .draw(self.display)
         .unwrap();
     }
 }
-impl BoardRenderer for LevelRenderer<'_> {
+impl<T: CountDown + Periodic> BoardRenderer for LevelRenderer<'_, T> {
     fn draw_space(&mut self, board_position: Vector<u8>, space: Space) {
         const SPACE_COLOR: Rgb565 = Rgb565::CSS_GRAY;
 
@@ -197,7 +148,6 @@ impl BoardRenderer for LevelRenderer<'_> {
     }
 
     fn draw_piece(&mut self, board_position: Vector<u8>, piece: Piece, is_active: bool) {
-        // TODO: Is there a sprite system available to make this easier? May not be needed
         Circle::new(self.board_position(board_position), SPACE_SIZE)
             .into_styled(PrimitiveStyle::with_fill(piece.display_color()))
             .draw(self.display)
@@ -216,12 +166,46 @@ impl BoardRenderer for LevelRenderer<'_> {
         }
     }
 
-    fn slide_piece(&mut self, piece_slid: PieceSlid, is_active: bool) {
-        // TODO: Animate this with constant slide time? Observe how the web version does it
-        self.draw_space(
-            piece_slid.starting_position,
-            self.level.get_space(piece_slid.starting_position),
+    fn slide_piece(&mut self, piece_slid: &PieceSlid, is_active: bool) {
+        // TODO: Test code, 4 horizontal tile strip in the middle of the board (level 11).
+        /* let mut framebuf_backend = [Rgb565::BLACK; 4 * 12 * 12];
+        let mut framebuf = FrameBuf::new(
+            &mut framebuf_backend,
+            4 * SPACE_SIZE as usize,
+            SPACE_SIZE as usize,
         );
+        Text::with_text_style(
+            "Tickle tester!",
+            Point::zero(),
+            MonoTextStyleBuilder::new()
+                .font(&FONT)
+                .text_color(Rgb565::YELLOW)
+                .background_color(Rgb565::BLUE)
+                .build(),
+            TextStyleBuilder::new()
+                .alignment(Alignment::Left)
+                .baseline(Baseline::Top)
+                .build(),
+        )
+        .draw(&mut framebuf)
+        .unwrap();
+        Circle::new(Point::new(SPACE_SIZE as i32 * 3, 0), SPACE_SIZE)
+            .into_styled(PrimitiveStyle::with_fill(Rgb565::CSS_HOT_PINK))
+            .draw(&mut framebuf)
+            .unwrap();
+        self.display
+            .fill_contiguous(
+                &Rectangle::new(
+                    self.board_position(Vector::new(1, 2)),
+                    Size::new(4 * SPACE_SIZE, SPACE_SIZE),
+                ),
+                framebuf_backend,
+            )
+            .unwrap(); */
+
+        // TODO: Animate this with constant slide time? Observe how the web version does it
+        // TODO: Is there a sprite system available to make this easier? May not be needed
+        self.draw_space(piece_slid.starting_position, piece_slid.starting_space);
         self.draw_piece(
             piece_slid.starting_position
                 + piece_slid.muv.direction.as_vector() * piece_slid.distance.try_into().unwrap(),
@@ -231,11 +215,63 @@ impl BoardRenderer for LevelRenderer<'_> {
     }
 
     fn update_num_moves(&mut self, num_moves: u8, at_maximum: bool) {
-        self.draw_num_moves(num_moves, at_maximum);
+        let mut fs: String<12> = String::new();
+
+        let num_chars = if self.at_max_moves == at_maximum {
+            // Just update the number
+            write!(fs, "{}  ", num_moves).unwrap();
+            7
+        } else {
+            // Need to update the number and texts
+            write!(fs, "Moves: {}  ", num_moves).unwrap();
+            0
+        };
+        self.at_max_moves = at_maximum;
+
+        Text::with_text_style(
+            &fs,
+            Point::new(
+                FONT.character_size.width as i32 * num_chars,
+                self.display.size().height as i32 - 1,
+            ),
+            MonoTextStyleBuilder::new()
+                .font(&FONT)
+                .text_color(if at_maximum {
+                    Rgb565::RED
+                } else {
+                    Rgb565::WHITE
+                })
+                .background_color(Rgb565::BLACK)
+                .build(),
+            TextStyleBuilder::new()
+                .alignment(Alignment::Left)
+                .baseline(Baseline::Bottom)
+                .build(),
+        )
+        .draw(self.display)
+        .unwrap();
     }
 
-    fn update_goal(&mut self, goal: u8) {
-        let mut fs: String<9> = String::new();
+    fn update_constants(&mut self, level_num: u16, goal: u8) {
+        let mut fs: String<10> = String::new();
+
+        // Draw level number
+        write!(fs, "Level {}", level_num).unwrap();
+
+        Text::with_text_style(
+            &fs,
+            Point::new(self.display_center.x, 0),
+            MonoTextStyle::new(&FONT, Rgb565::WHITE),
+            TextStyleBuilder::new()
+                .alignment(Alignment::Center)
+                .baseline(Baseline::Top)
+                .build(),
+        )
+        .draw(self.display)
+        .unwrap();
+
+        // Draw the goal
+        fs.clear();
         write!(fs, "Goal: {}", goal).unwrap();
         let size = self.display.size();
 
@@ -252,7 +288,26 @@ impl BoardRenderer for LevelRenderer<'_> {
         .unwrap();
     }
 
-    fn notify_win(&mut self, rating: LevelRating) {
-        //todo!()
+    fn notify_win(&mut self, level_status: LevelStatus) {
+        let mut fs: String<24> = String::new();
+        write!(
+            fs,
+            "You win with {}/5 stars!",
+            level_status.rating().num_stars()
+        )
+        .unwrap();
+
+        // TODO: This needs finalized with location and stars.
+        Text::with_text_style(
+            &fs,
+            Point::new(self.display_center.x, 10),
+            MonoTextStyle::new(&FONT, Rgb565::YELLOW),
+            TextStyleBuilder::new()
+                .alignment(Alignment::Center)
+                .baseline(Baseline::Top)
+                .build(),
+        )
+        .draw(self.display)
+        .unwrap();
     }
 }

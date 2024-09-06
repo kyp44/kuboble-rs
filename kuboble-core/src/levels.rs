@@ -204,7 +204,7 @@ pub static LEVELS: [Level; NUM_LEVELS] = [
             "##   #",
             "_#####",
         ],
-        positions: [(3, 3), (4, 3)],
+        positions: [(4, 3), (3, 3)],
         optimal: 8,
     },
     // Level 12

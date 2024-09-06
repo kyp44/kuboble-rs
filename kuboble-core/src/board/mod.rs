@@ -4,11 +4,12 @@ use crate::{
 };
 use arrayvec::ArrayVec;
 use core::{mem::variant_count, ops::Neg};
+use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 
 pub mod render;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Direction {
     Up,
     Down,
@@ -38,7 +39,7 @@ impl Direction {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Move {
     pub piece: Piece,
     pub direction: Direction,

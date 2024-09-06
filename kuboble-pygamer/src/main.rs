@@ -1,18 +1,17 @@
 #![no_std]
 #![no_main]
+#![feature(let_chains)]
 
 use controls::ControlAction;
-use heapless::String;
-use kuboble_core::{Action, Board, LEVELS};
+use kuboble_core::board::{Action, Board};
+use kuboble_core::level_select::LevelProgress;
 use pac::{CorePeripherals, Peripherals};
 use pygamer::adc::Adc;
 use pygamer::clock::GenericClockController;
 use pygamer::delay::Delay;
 use pygamer::pac::gclk::pchctrl::GEN_A;
-use pygamer::prelude::_embedded_hal_blocking_delay_DelayMs;
-use pygamer::prelude::*;
-use pygamer::timer::TimerCounter;
-use pygamer::{entry, hal, pac, Pins};
+use pygamer::timer::SpinTimer;
+use pygamer::{entry, pac, Pins};
 use renderer::LevelRenderer;
 
 mod controls;
@@ -46,25 +45,18 @@ fn main() -> ! {
         )
         .unwrap();
 
-    // Setup board
-    let mut board = Board::from(&LEVELS[0]);
+    // Set up the neo-pixels driver
+    // Note: This is the non-deprecated way but is jittery as commented in the example
+    // here: https://github.com/atsamd-rs/atsamd/blob/master/boards/pygamer/examples/neopixel_rainbow_spi.rs
+    // Maybe look back into this later so we don't have to use the deprecated SpinTimer.
+    /* let tc4_clock = clocks.tc4_tc5(&clocks.gclk0()).unwrap();
+    let mut neopixels_timer = TimerCounter::tc4_(&tc4_clock, peripherals.TC4, &mut peripherals.MCLK);
+    neopixels_timer.start(3.mhz()); */
+    let neopixels_timer = SpinTimer::new(4);
+    let mut neopixels = pins.neopixel.init(neopixels_timer, &mut pins.port);
 
-    // Set up the neo-pixels
-    // TODO: Some of this stuff needs moved to render, just test code.
-    use pygamer::prelude::*;
-    use smart_leds::{SmartLedsWrite, RGB};
-
-    let gclk0 = &clocks.gclk0();
-    let x = clocks.tc4_tc5(gclk0).unwrap();
-    let mut z = TimerCounter::tc4_(&x, peripherals.TC4, &mut peripherals.MCLK);
-    z.start(3.mhz());
-    //let z = hal::timer::SpinTimer::new(4);
-    let mut neopixels = pins.neopixel.init(z, &mut pins.port);
-
-    /*
-    // Setup the board renderer and render the initial board
-    let mut level_renderer = LevelRenderer::new(&mut display, &mut neopixels, board.level());
-    board.render(&mut level_renderer);
+    // Setup level progress tracker
+    let level_progress = LevelProgress::default();
 
     // Setup the controller
     let adc = Adc::adc1(
@@ -79,30 +71,34 @@ fn main() -> ! {
         pins.buttons.init(&mut pins.port),
     );
 
+    let level_info = level_progress.level_info(10);
     loop {
-        let action = match controller.wait_for_action(&mut delay) {
-            ControlAction::Move(d) => Action::Move(d),
-            ControlAction::A => Action::ChangeActivePiece,
-            ControlAction::B => Action::UndoMove,
-            ControlAction::Start => Action::Restart,
-            ControlAction::Select => todo!(),
-        };
+        // Setup the board renderer and render the initial board
+        let mut level_renderer = LevelRenderer::new(&mut display, &mut neopixels, level_info.level);
 
-        board.execute_action(action).render(&mut level_renderer);
-    }*/
+        // Setup board and perform the initial render
+        let mut board = Board::new(&level_info);
+        board.render(&mut level_renderer);
 
-    let mut colors = [
-        RGB::new(255, 0, 0),
-        RGB::new(0, 255, 0),
-        RGB::new(0, 0, 255),
-    ]
-    .into_iter()
-    .cycle();
+        // Let the user play the board
+        loop {
+            let action = match controller.wait_for_action(&mut delay) {
+                ControlAction::Move(d) => Action::Move(d),
+                ControlAction::A => Action::ChangeActivePiece,
+                ControlAction::B => Action::UndoMove,
+                ControlAction::Start => Action::Restart,
+                ControlAction::Select => break,
+            };
 
-    loop {
-        neopixels.write(colors.clone().take(5)).unwrap();
+            let board_changed = board.execute_action(action);
+            board_changed.render(&mut level_renderer);
 
-        delay.delay_ms(3000u32);
-        colors.next();
+            if board_changed.winning_status.is_some() {
+                // Wait for user to proceed
+                controller.wait_for_proceed(&mut delay);
+
+                break;
+            }
+        }
     }
 }

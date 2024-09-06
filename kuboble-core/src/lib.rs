@@ -12,6 +12,9 @@ pub mod board;
 pub mod level_select;
 mod levels;
 
+// TODO: Should we switch to something like this instead of our own thing?
+// https://crates.io/crates/nalgebra
+// This is compatible with embedded-graphics point types too in that it provides conversions... might be nice.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Vector<T> {
     pub x: T,
@@ -45,7 +48,7 @@ impl From<Vector<u8>> for Vector<usize> {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, EnumIter)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, EnumIter, Serialize, Deserialize)]
 pub enum Piece {
     #[default]
     Green = 0,

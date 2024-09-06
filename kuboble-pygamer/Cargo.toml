@@ -4,9 +4,10 @@ name = "kuboble-pygamer"
 version = "0.1.0"
 
 [dependencies]
-derive-new = "0.5"
+derive-new = "0.7"
 embedded-graphics = "0.7"
 embedded-graphics-core = "0.3"
+embedded-graphics-framebuf = "0.2"
 heapless = "0.8"
 kuboble-core = {path = "../kuboble-core"}
 pygamer = {version = "0.9", features = ["panic_led"]}

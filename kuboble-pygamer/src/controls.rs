@@ -1,9 +1,5 @@
-use embedded_graphics::prelude::Point;
-use embedded_graphics::text::renderer;
-use heapless::String;
-use kuboble_core::Direction;
+use kuboble_core::board::Direction;
 use pygamer::adc::Adc;
-use pygamer::hal::hal::blocking;
 use pygamer::pac::ADC1;
 use pygamer::pins::{ButtonReader, JoystickReader, Keys};
 use pygamer::prelude::*;
@@ -44,6 +40,7 @@ pub struct Controller {
     joystick_adc: Adc<ADC1>,
     joystick_reader: JoystickReader,
     button_reader: ButtonReader,
+    last_direction: Option<Direction>,
 }
 impl Controller {
     // TODO: Use derive-new for this?
@@ -56,6 +53,7 @@ impl Controller {
             joystick_adc,
             joystick_reader,
             button_reader,
+            last_direction: None,
         }
     }
     pub fn wait_for_action<D: _embedded_hal_blocking_delay_DelayMs<u32>>(
@@ -64,8 +62,16 @@ impl Controller {
     ) -> ControlAction {
         loop {
             delay.delay_ms(50);
-            if let Some(direction) = self.joystick_reader.direction(&mut self.joystick_adc) {
-                break ControlAction::Move(direction);
+
+            // Need to debounce the joystick
+            let old_direction = self.last_direction;
+            let new_direction = self.joystick_reader.direction(&mut self.joystick_adc);
+            self.last_direction = new_direction;
+
+            if new_direction != old_direction
+                && let Some(dir) = new_direction
+            {
+                break ControlAction::Move(dir);
             }
             for key in self.button_reader.events() {
                 return match key {
@@ -75,6 +81,18 @@ impl Controller {
                     Keys::ADown => ControlAction::A,
                     _ => continue,
                 };
+            }
+        }
+    }
+
+    pub fn wait_for_proceed<D: _embedded_hal_blocking_delay_DelayMs<u32>>(
+        &mut self,
+        delay: &mut D,
+    ) {
+        loop {
+            match self.wait_for_action(delay) {
+                ControlAction::A | ControlAction::Start => break,
+                _ => {}
             }
         }
     }
