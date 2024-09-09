@@ -1,6 +1,5 @@
 use super::{Board, BoardChanged, PieceSlid, PiecesChanged};
 use crate::{level_select::LevelStatus, Piece, Space, Vector};
-use strum::IntoEnumIterator;
 
 #[cfg(feature = "std")]
 use super::VecExt;
@@ -25,7 +24,7 @@ impl Board<'_> {
         }
 
         // Render pieces
-        for piece in Piece::iter() {
+        for piece in self.level().all_pieces() {
             renderer.draw_piece(
                 self.board_state.piece_position(piece),
                 piece,
@@ -71,7 +70,7 @@ impl PiecesChanged<'_> {
                 active_piece,
                 positions,
             } => {
-                for piece in Piece::iter() {
+                for piece in positions.pieces() {
                     renderer.draw_piece(*positions.get(piece), piece, piece == *active_piece);
                 }
             }

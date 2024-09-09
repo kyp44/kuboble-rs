@@ -27,6 +27,7 @@ mod colors {
 
     pub const PIECE_GREEN: Color = Color::Green;
     pub const PIECE_ORANGE: Color = Color::Red;
+    pub const PIECE_BLUE: Color = Color::Blue;
 
     pub const WIN_NOTIFICATION: Color = Color::Yellow;
 
@@ -49,6 +50,7 @@ impl PieceExt for Piece {
         match self {
             Piece::Green => colors::PIECE_GREEN,
             Piece::Orange => colors::PIECE_ORANGE,
+            Piece::Blue => colors::PIECE_BLUE,
         }
     }
 }

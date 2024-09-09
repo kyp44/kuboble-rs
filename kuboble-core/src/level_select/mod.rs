@@ -83,8 +83,7 @@ impl LevelInfo {
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct LevelProgress {
-    // TODO: For serialization purposes, does this need to be a an ArrayVec?
-    level_statuses: [LevelStatus; NUM_LEVELS],
+    level_statuses: ArrayVec<LevelStatus, NUM_LEVELS>,
 }
 impl LevelProgress {
     pub fn level_info(&self, level_idx: usize) -> LevelInfo {
@@ -92,13 +91,26 @@ impl LevelProgress {
 
         LevelInfo {
             index: level_idx,
-            rating: self.level_statuses[level_idx].rating(),
+            rating: self
+                .level_statuses
+                .get(level_idx)
+                .map(|s| s.rating())
+                .unwrap_or_default(),
             level,
         }
     }
 
     // Only updates the status if it is better and returns whether it was updated
     pub fn attempt_status_update(&mut self, level_idx: usize, new_status: LevelStatus) -> bool {
+        if level_idx >= self.level_statuses.len() {
+            // Need to add elements so we can change this one
+            self.level_statuses.extend(
+                std::iter::repeat(LevelStatus::default())
+                    .take(level_idx - self.level_statuses.len() + 1),
+            )
+        }
+
+        // Now this element should exist
         if new_status > self.level_statuses[level_idx] {
             self.level_statuses[level_idx] = new_status;
             true
@@ -114,7 +126,6 @@ pub enum Direction {
     Next,
 }
 
-// TODO: Need iterator?
 #[derive(Clone, Copy, Default, Hash, PartialEq, Eq, EnumIter)]
 pub enum Filter {
     #[default]

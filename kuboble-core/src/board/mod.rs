@@ -5,7 +5,6 @@ use crate::{
 use arrayvec::ArrayVec;
 use core::{mem::variant_count, ops::Neg};
 use serde::{Deserialize, Serialize};
-use strum::IntoEnumIterator;
 
 pub mod render;
 
@@ -105,13 +104,14 @@ impl<'a> From<&'a Level> for BoardState<'a> {
     fn from(value: &'a Level) -> Self {
         Self {
             level: value,
-            positions: value.starting_positions.clone(),
+            positions: value.starting_positions.into(),
         }
     }
 }
 impl BoardState<'_> {
     pub fn is_winning(&self) -> bool {
-        Piece::iter()
+        self.level
+            .all_pieces()
             .all(|piece| self.level.get_space(self.piece_position(piece)) == Space::Goal(piece))
     }
 
@@ -136,7 +136,10 @@ impl BoardState<'_> {
             let new_position = position + vector;
 
             if self.level.get_space(new_position) == Space::Wall
-                || Piece::iter().any(|piece| new_position == self.piece_position(piece))
+                || self
+                    .level
+                    .all_pieces()
+                    .any(|piece| new_position == self.piece_position(piece))
             {
                 break;
             }
@@ -271,7 +274,11 @@ impl<'a> Board<'a> {
 
         // If the active piece cannot move, can the other piece?
         if moved.is_none() {
-            for piece in Piece::iter().filter(|p| *p != self.active_piece) {
+            for piece in self
+                .level()
+                .all_pieces()
+                .filter(|p| *p != self.active_piece)
+            {
                 muv = Move::new(piece, direction);
                 moved = new_state.attempt_move(muv);
                 if let Some(ref slid) = moved {
@@ -306,10 +313,8 @@ impl<'a> Board<'a> {
     }
 
     fn change_active_piece(&mut self) -> PiecesChanged {
-        let new_piece = match self.active_piece {
-            Piece::Green => Piece::Orange,
-            Piece::Orange => Piece::Green,
-        };
+        let new_piece =
+            Piece::try_from((self.active_piece as u8 + 1) % self.level().num_pieces()).unwrap();
 
         self.active_piece = new_piece;
 
@@ -357,7 +362,8 @@ impl<'a> Board<'a> {
 
             BoardChanged {
                 pieces_changed: Some(PiecesChanged::Moved(
-                    Piece::iter()
+                    self.level()
+                        .all_pieces()
                         .map(|piece| {
                             let from = old_state.piece_position(piece);
                             PieceMoved {

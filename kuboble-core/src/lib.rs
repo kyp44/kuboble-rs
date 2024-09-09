@@ -3,10 +3,10 @@
 #![feature(let_chains)]
 #![feature(generic_const_exprs)]
 
+use arrayvec::ArrayVec;
 use core::mem::variant_count;
 use itertools::iproduct;
 use serde::{Deserialize, Serialize};
-use strum::EnumIter;
 
 pub mod board;
 pub mod level_select;
@@ -48,16 +48,45 @@ impl From<Vector<u8>> for Vector<usize> {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, EnumIter, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[repr(u8)]
 pub enum Piece {
     #[default]
     Green = 0,
     Orange = 1,
+    Blue = 2,
+}
+impl TryFrom<u8> for Piece {
+    type Error = ();
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::Green),
+            1 => Ok(Self::Orange),
+            2 => Ok(Self::Blue),
+            _ => Err(()),
+        }
+    }
+}
+impl Piece {
+    pub fn iter(num: u8) -> impl Iterator<Item = Piece> {
+        [Self::Green, Self::Orange, Self::Blue]
+            .into_iter()
+            .take(num as usize)
+    }
+
+    pub fn iter_all() -> impl Iterator<Item = Piece> {
+        Self::iter(variant_count::<Piece>().try_into().unwrap())
+    }
 }
 
 #[derive(Debug, Clone)]
-pub struct PieceMap<T>([T; variant_count::<Piece>()]);
+pub struct PieceMap<T>(ArrayVec<T, { variant_count::<Piece>() }>);
 impl<T> PieceMap<T> {
+    pub fn pieces(&self) -> impl Iterator<Item = Piece> {
+        Piece::iter(self.0.len().try_into().unwrap())
+    }
+
     pub fn get(&self, piece: Piece) -> &T {
         &self.0[piece as usize]
     }
@@ -66,9 +95,18 @@ impl<T> PieceMap<T> {
         &mut self.0[piece as usize]
     }
 }
+impl<T: Copy> From<&[T]> for PieceMap<T> {
+    fn from(value: &[T]) -> Self {
+        let mut array_vec = ArrayVec::new();
+        array_vec.try_extend_from_slice(value).unwrap();
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        Self(array_vec)
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum Space {
+    #[default]
     Void,
     Wall,
     Free,
@@ -78,10 +116,18 @@ pub enum Space {
 pub struct Level {
     pub size: Vector<u8>,
     spaces: &'static [Space],
-    pub starting_positions: PieceMap<Vector<u8>>,
+    pub starting_positions: &'static [Vector<u8>],
     pub optimal_moves: u8,
 }
 impl Level {
+    pub fn num_pieces(&self) -> u8 {
+        self.starting_positions.len().try_into().unwrap()
+    }
+
+    pub fn all_pieces(&self) -> impl Iterator<Item = Piece> {
+        Piece::iter(self.num_pieces())
+    }
+
     pub fn user_size(&self) -> Vector<u8> {
         Vector::new(self.size.x - 2, self.size.y - 2)
     }
