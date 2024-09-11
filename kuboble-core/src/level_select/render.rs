@@ -1,5 +1,4 @@
-use super::{Filter, LevelSelector, LevelSelectorChanged, LevelSlotInfo};
-use crate::levels::NUM_LEVELS;
+use super::{Filter, LevelSelector, LevelSelectorChange, LevelSlotInfo};
 use strum::IntoEnumIterator;
 
 pub trait LevelSelectRenderer {
@@ -14,34 +13,24 @@ impl<const W: usize> LevelSelector<'_, W> {
             renderer.update_filter(filter, filter == self.active_filter);
         }
 
-        for idx in 0..NUM_LEVELS {
-            renderer.draw_level_slot(&LevelSlotInfo {
-                level_info: self.level_progress.level_info(idx),
-                position: idx.try_into().unwrap(),
-                is_active: idx == self.active_level_idx,
-            });
+        // Draw slots
+        for slot in self.window_slots() {
+            renderer.draw_level_slot(&slot);
         }
     }
 }
 
-impl LevelSelectorChanged {
+impl<const W: usize> LevelSelectorChange<W> {
     pub fn render<R: LevelSelectRenderer>(&self, renderer: &mut R) {
-        match self {
-            LevelSelectorChanged::UpdateSlot(slot) => {
-                renderer.draw_level_slot(slot);
-            }
-            LevelSelectorChanged::SlotsSwap(changed_slots) => {
-                for change in changed_slots {
-                    renderer.draw_level_slot(change)
-                }
-            }
-            LevelSelectorChanged::Filter {
-                inactive: deselect,
-                active: select,
-            } => {
-                renderer.update_filter(*deselect, false);
-                renderer.update_filter(*select, true)
-            }
+        // Render any slots
+        for slot in self.slots_change.iter() {
+            renderer.draw_level_slot(slot);
+        }
+
+        // Render filter change if applicable
+        if let Some(ref filter_change) = self.filter_change {
+            renderer.update_filter(filter_change.inactive, false);
+            renderer.update_filter(filter_change.active, true);
         }
     }
 }

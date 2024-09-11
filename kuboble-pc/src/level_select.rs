@@ -4,7 +4,7 @@ use crate::{
 };
 use easycurses::{ColorPair, EasyCurses};
 use kuboble_core::{
-    board::Direction as KeyDirection,
+    level_run::Direction as KeyDirection,
     level_select::{
         render::LevelSelectRenderer, Action, Direction, Filter, LevelInfo, LevelSelector,
         LevelSlotInfo,
@@ -22,46 +22,55 @@ impl<'a> CursesRenderer<'a> {
         Self { curses }
     }
 
+    fn level_row(slot_position: u8) -> i32 {
+        slot_position as i32 + 2
+    }
+
     pub fn wait_for_key(&mut self) -> ControlAction {
         self.curses.wait_for_key()
     }
 }
 impl LevelSelectRenderer for CursesRenderer<'_> {
     fn draw_level_slot(&mut self, level_slot_info: &LevelSlotInfo) {
-        let level_info = &level_slot_info.level_info;
-        let user_size = level_info.level.user_size();
+        match level_slot_info {
+            LevelSlotInfo::Empty(pos) => self.curses.clear_row(Self::level_row(*pos)).unwrap(),
+            LevelSlotInfo::Level {
+                level_info,
+                position,
+                is_active,
+            } => {
+                // NOTE: Evidently we cannot just get the background color from a pair, which is annoying
+                let background = if *is_active {
+                    colors::SELECTED_BACKGROUND
+                } else {
+                    colors::BACKGROUND
+                };
+                let main_pair = if *is_active {
+                    colors::selected(SELECTED_MAIN)
+                } else {
+                    colors::basic(colors::MAIN)
+                };
 
-        // NOTE: Evidently we cannot just get the background color from a pair, which is annoying
-        let background = if level_slot_info.is_active {
-            colors::SELECTED_BACKGROUND
-        } else {
-            colors::BACKGROUND
-        };
-        let main_pair = if level_slot_info.is_active {
-            colors::selected(SELECTED_MAIN)
-        } else {
-            colors::basic(colors::MAIN)
-        };
+                // Print level number
+                self.curses.move_rc(Self::level_row(*position), 0).unwrap();
+                self.curses.set_color_pair(main_pair);
+                self.curses
+                    .print(format!("Level {:<8}", level_info.user_num(),))
+                    .unwrap();
 
-        // Print level number
-        self.curses
-            .move_rc(level_slot_info.position as i32 + 2, 0)
-            .unwrap();
-        self.curses.set_color_pair(main_pair);
-        self.curses
-            .print(format!("Level {:<8}", level_info.user_num(),))
-            .unwrap();
+                // Print rating
+                self.curses
+                    .draw_rating(level_info.rating, background)
+                    .unwrap();
 
-        // Print rating
-        self.curses
-            .draw_rating(level_info.rating, background)
-            .unwrap();
-
-        // Print user size
-        self.curses.set_color_pair(main_pair);
-        self.curses
-            .print(format!("{:>8}x{}", user_size.x, user_size.y))
-            .unwrap();
+                // Print user size
+                let user_size = level_info.level.user_size();
+                self.curses.set_color_pair(main_pair);
+                self.curses
+                    .print(format!("{:>8}x{}", user_size.x, user_size.y))
+                    .unwrap();
+            }
+        }
     }
 
     fn update_filter(&mut self, filter: Filter, is_active: bool) {
@@ -101,7 +110,7 @@ impl LevelSelectRenderer for CursesRenderer<'_> {
     }
 }
 
-const LEVEL_WINDOW_SIZE: usize = 5;
+const LEVEL_WINDOW_SIZE: usize = 10;
 
 pub fn select_level(
     curses: &mut EasyCurses,
@@ -119,7 +128,10 @@ pub fn select_level(
                 KeyDirection::Left => Action::ChangeActiveFilter(Direction::Previous),
                 KeyDirection::Right => Action::ChangeActiveFilter(Direction::Next),
             },
-            ControlAction::Proceed => return Some(level_selector.selected_level()),
+            ControlAction::Proceed => match level_selector.active_level_info() {
+                Some(level_info) => return Some(level_info),
+                None => continue,
+            },
             _ => {
                 continue;
             }

@@ -1,7 +1,7 @@
-use core::{cmp::Ordering, mem::discriminant};
+use core::{cmp::Ordering, iter::repeat, mem::discriminant};
 
 use crate::{
-    board::Move,
+    level_run::Move,
     levels::{LEVELS, MAX_OPTIMAL_MOVES, NUM_LEVELS},
     Level, LevelRating,
 };
@@ -69,7 +69,46 @@ impl Ord for LevelStatus {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Default, Hash, PartialEq, Eq, EnumIter)]
+pub enum Filter {
+    #[default]
+    All,
+    Incomplete,
+    PartiallyComplete,
+    Optimal,
+}
+impl Filter {
+    pub fn next(&self) -> Self {
+        match self {
+            Filter::All => Self::Incomplete,
+            Filter::Incomplete => Self::PartiallyComplete,
+            Filter::PartiallyComplete => Self::Optimal,
+            Filter::Optimal => Self::All,
+        }
+    }
+
+    pub fn previous(&self) -> Self {
+        match self {
+            Filter::All => Self::Optimal,
+            Filter::Incomplete => Self::All,
+            Filter::PartiallyComplete => Self::Incomplete,
+            Filter::Optimal => Self::PartiallyComplete,
+        }
+    }
+
+    pub fn passes(&self, level_status: &LevelStatus) -> bool {
+        match self {
+            Filter::All => true,
+            Filter::Incomplete => !level_status.is_complete(),
+            Filter::PartiallyComplete => {
+                level_status.is_complete() && !level_status.rating().is_optimal()
+            }
+            Filter::Optimal => level_status.rating().is_optimal(),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct LevelInfo {
     pub index: usize,
     pub rating: LevelRating,
@@ -105,8 +144,7 @@ impl LevelProgress {
         if level_idx >= self.level_statuses.len() {
             // Need to add elements so we can change this one
             self.level_statuses.extend(
-                std::iter::repeat(LevelStatus::default())
-                    .take(level_idx - self.level_statuses.len() + 1),
+                repeat(LevelStatus::default()).take(level_idx - self.level_statuses.len() + 1),
             )
         }
 
@@ -118,6 +156,83 @@ impl LevelProgress {
             false
         }
     }
+
+    pub fn filtered_indices(&self, filter: Filter) -> impl Iterator<Item = usize> + '_ {
+        static DEFAULT_STATUS: LevelStatus = LevelStatus::Incomplete;
+
+        // We need to fill in any at the end with the default status
+        self.level_statuses
+            .iter()
+            .chain(repeat(&DEFAULT_STATUS))
+            .take(NUM_LEVELS)
+            .enumerate()
+            .filter_map(move |(idx, ls)| filter.passes(ls).then_some(idx))
+    }
+}
+
+// Evidently a crate contain something like this just does not exist
+struct WindowVec<T, const C: usize, const W: usize> {
+    vec: ArrayVec<T, C>,
+    window_top_idx: usize,
+}
+impl<T, const C: usize, const W: usize> FromIterator<T> for WindowVec<T, C, W> {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        Self {
+            vec: ArrayVec::from_iter(iter),
+            window_top_idx: 0,
+        }
+    }
+}
+impl<T, const C: usize, const W: usize> WindowVec<T, C, W> {
+    // Clear and refill from iterator, resetting the window
+    pub fn refill<I: IntoIterator<Item = T>>(&mut self, iter: I) {
+        self.vec.clear();
+        self.vec.extend(iter);
+        self.window_top_idx = 0;
+    }
+
+    #[inline]
+    pub fn window_len(&self) -> usize {
+        self.vec.len()
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.vec.is_empty()
+    }
+
+    pub fn get(&self, idx: usize) -> Option<&T> {
+        self.vec.get(self.window_top_idx + idx)
+    }
+
+    // Shifts the window back one
+    pub fn shift_back(&mut self) -> bool {
+        if self.window_top_idx > 0 {
+            self.window_top_idx -= 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    // Shifts the window forward one
+    pub fn shift_forward(&mut self) -> bool {
+        if self.window_top_idx + W < self.vec.len() {
+            self.window_top_idx += 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    // Iterate over full window length
+    pub fn iter(&self) -> impl Iterator<Item = Option<&T>> {
+        self.vec[self.window_top_idx..self.vec.len().min(self.window_top_idx + W)]
+            .into_iter()
+            .map(|x| Some(x))
+            .chain(repeat(None))
+            .take(W)
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -125,31 +240,11 @@ pub enum Direction {
     Previous,
     Next,
 }
-
-#[derive(Clone, Copy, Default, Hash, PartialEq, Eq, EnumIter)]
-pub enum Filter {
-    #[default]
-    All,
-    Incomplete,
-    PartiallyComplete,
-    Optimal,
-}
-impl Filter {
-    pub fn next(&self) -> Self {
+impl Direction {
+    pub fn delta(&self) -> i8 {
         match self {
-            Filter::All => Self::Incomplete,
-            Filter::Incomplete => Self::PartiallyComplete,
-            Filter::PartiallyComplete => Self::Optimal,
-            Filter::Optimal => Self::All,
-        }
-    }
-
-    pub fn previous(&self) -> Self {
-        match self {
-            Filter::All => Self::Optimal,
-            Filter::Incomplete => Self::All,
-            Filter::PartiallyComplete => Self::Incomplete,
-            Filter::Optimal => Self::PartiallyComplete,
+            Direction::Previous => -1,
+            Direction::Next => 1,
         }
     }
 }
@@ -160,66 +255,133 @@ pub enum Action {
     ActiveLevelCompleted(LevelStatus),
 }
 
-pub struct LevelSlotInfo {
-    pub level_info: LevelInfo,
-    pub position: u8,
-    pub is_active: bool,
+#[derive(Debug)]
+pub enum LevelSlotInfo {
+    Empty(u8),
+    Level {
+        level_info: LevelInfo,
+        position: u8,
+        is_active: bool,
+    },
 }
 
-pub enum LevelSelectorChanged {
-    UpdateSlot(LevelSlotInfo),
-    SlotsSwap([LevelSlotInfo; 2]),
-    Filter { inactive: Filter, active: Filter },
+pub struct FilterChange {
+    inactive: Filter,
+    active: Filter,
+}
+
+pub struct LevelSelectorChange<const W: usize> {
+    slots_change: ArrayVec<LevelSlotInfo, W>,
+    filter_change: Option<FilterChange>,
 }
 
 pub struct LevelSelector<'a, const W: usize> {
     level_progress: &'a mut LevelProgress,
-    active_level_idx: usize,
     active_filter: Filter,
-    window_size: u8,
+    level_indices_window: WindowVec<u16, NUM_LEVELS, W>,
+    active_window_idx: Option<u8>,
 }
 impl<'a, const W: usize> LevelSelector<'a, W> {
-    pub fn new(level_progress: &'a mut LevelProgress, window_size: u8) -> Self {
+    pub fn new(level_progress: &'a mut LevelProgress) -> Self {
+        let level_indices_window = WindowVec::from_iter(
+            level_progress
+                .filtered_indices(Filter::default())
+                .map(|i| i.try_into().unwrap()),
+        );
+
+        let active_window_idx = (!level_indices_window.is_empty()).then_some(0);
+
         Self {
             level_progress,
-            active_level_idx: 0,
             active_filter: Filter::default(),
-            window_size,
+            level_indices_window,
+            active_window_idx,
         }
     }
 
-    pub fn selected_level(&self) -> LevelInfo {
-        self.level_progress.level_info(self.active_level_idx)
+    fn active_level_idx(&self) -> Option<usize> {
+        self.active_window_idx
+            .and_then(|idx| self.level_indices_window.get(idx as usize))
+            .map(|idx| *idx as usize)
     }
 
-    pub fn execute_action(&mut self, action: Action) -> Option<LevelSelectorChanged> {
-        match action {
-            Action::ChangeActiveLevel(dir) => {
-                let new_idx = match dir {
-                    Direction::Previous => self.active_level_idx.saturating_sub(1),
-                    Direction::Next => (NUM_LEVELS - 1).min(self.active_level_idx + 1),
-                };
+    pub fn active_level_info(&self) -> Option<LevelInfo> {
+        self.active_level_idx()
+            .map(|level_idx| self.level_progress.level_info(level_idx))
+    }
 
-                if self.active_level_idx != new_idx {
-                    let old_idx = self.active_level_idx;
-                    self.active_level_idx = new_idx;
+    fn window_slots(&self) -> ArrayVec<LevelSlotInfo, W> {
+        self.level_indices_window
+            .iter()
+            .enumerate()
+            .map(|(posi, idx)| {
+                let pos = posi.try_into().unwrap();
 
-                    Some(LevelSelectorChanged::SlotsSwap([
-                        LevelSlotInfo {
-                            level_info: self.level_progress.level_info(old_idx),
-                            position: old_idx.try_into().unwrap(),
-                            is_active: false,
-                        },
-                        LevelSlotInfo {
-                            level_info: self.level_progress.level_info(new_idx),
-                            position: new_idx.try_into().unwrap(),
-                            is_active: true,
-                        },
-                    ]))
-                } else {
-                    None
+                match idx {
+                    Some(i) => LevelSlotInfo::Level {
+                        level_info: self.level_progress.level_info(*i as usize),
+                        position: pos,
+                        is_active: pos == self.active_window_idx.unwrap(),
+                    },
+                    None => LevelSlotInfo::Empty(pos),
+                }
+            })
+            .collect()
+    }
+
+    fn change_active_level(&mut self, direction: Direction) -> Option<LevelSelectorChange<W>> {
+        let mut change = None;
+
+        if let Some(window_idx) = self.active_window_idx {
+            if match direction {
+                Direction::Previous => window_idx > 0,
+                Direction::Next => {
+                    (window_idx as usize) < W.min(self.level_indices_window.window_len()) - 1
+                }
+            } {
+                // Can Just move the active selection up without changing the window
+                let mut slots_change = ArrayVec::new();
+
+                slots_change.push(LevelSlotInfo::Level {
+                    level_info: self.active_level_info().unwrap(),
+                    position: window_idx.try_into().unwrap(),
+                    is_active: false,
+                });
+
+                self.active_window_idx =
+                    Some((window_idx as i8 + direction.delta()).try_into().unwrap());
+
+                slots_change.push(LevelSlotInfo::Level {
+                    level_info: self.active_level_info().unwrap(),
+                    position: self.active_window_idx.unwrap().try_into().unwrap(),
+                    is_active: true,
+                });
+
+                change = Some(LevelSelectorChange {
+                    slots_change,
+                    filter_change: None,
+                });
+            } else {
+                // Need to shift the window
+                if match direction {
+                    Direction::Previous => self.level_indices_window.shift_back(),
+                    Direction::Next => self.level_indices_window.shift_forward(),
+                } {
+                    // The window was actually shifted, so the entire window likely changed
+                    change = Some(LevelSelectorChange {
+                        slots_change: self.window_slots(),
+                        filter_change: None,
+                    });
                 }
             }
+        }
+
+        change
+    }
+
+    pub fn execute_action(&mut self, action: Action) -> Option<LevelSelectorChange<W>> {
+        match action {
+            Action::ChangeActiveLevel(dir) => self.change_active_level(dir),
             Action::ChangeActiveFilter(dir) => {
                 let old_filter = self.active_filter;
                 self.active_filter = match dir {
@@ -227,27 +389,51 @@ impl<'a, const W: usize> LevelSelector<'a, W> {
                     Direction::Next => self.active_filter.next(),
                 };
 
-                Some(LevelSelectorChanged::Filter {
-                    inactive: old_filter,
-                    active: self.active_filter,
+                // Rebuild the window
+                self.level_indices_window.refill(
+                    self.level_progress
+                        .filtered_indices(self.active_filter)
+                        .map(|i| i.try_into().unwrap()),
+                );
+                self.active_window_idx = (!self.level_indices_window.is_empty()).then_some(0);
+
+                Some(LevelSelectorChange {
+                    slots_change: self.window_slots(),
+                    filter_change: Some(FilterChange {
+                        inactive: old_filter,
+                        active: self.active_filter,
+                    }),
                 })
             }
             Action::ActiveLevelCompleted(new_status) => {
-                self.level_progress
-                    .attempt_status_update(self.active_level_idx, new_status)
-                    .then(|| {
-                        // Need to update the active level
-                        LevelSelectorChanged::UpdateSlot(LevelSlotInfo {
-                            level_info: self.level_progress.level_info(self.active_level_idx),
-                            position: self.active_level_idx.try_into().unwrap(),
-                            is_active: true,
-                        })
+                let level_idx = self.active_level_idx();
 
-                        // TODO Will need to unlock another level probably.
-                    })
+                level_idx.and_then(|level_idx| {
+                    self.level_progress
+                        .attempt_status_update(level_idx, new_status)
+                        .then(|| {
+                            let mut slots_change = ArrayVec::new();
+
+                            // Only the active level has changed
+                            slots_change.push(LevelSlotInfo::Level {
+                                level_info: self.active_level_info().unwrap(),
+                                position: self.active_window_idx.unwrap(),
+                                is_active: true,
+                            });
+
+                            LevelSelectorChange {
+                                slots_change,
+                                filter_change: None,
+                            }
+
+                            // TODO Will need to unlock another level probably.
+                        })
+                })
             }
         }
     }
 }
 
 // TODO Write some tests for these items, especially the order and equality of LevelStatus
+
+// TODO: Definitely write tests to test expansion of LevelSelector, though maybe we should just do black box behavior

@@ -24,3 +24,4 @@ Cargo.lock
 
 /target
 /level-converter/levels.rs
+level-progress.json

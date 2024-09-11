@@ -3,7 +3,7 @@
 #![feature(let_chains)]
 
 use controls::ControlAction;
-use kuboble_core::board::{Action, Board};
+use kuboble_core::level_run::{Action, LevelRun};
 use kuboble_core::level_select::LevelProgress;
 use pac::{CorePeripherals, Peripherals};
 use pygamer::adc::Adc;
@@ -73,14 +73,14 @@ fn main() -> ! {
 
     let level_info = level_progress.level_info(10);
     loop {
-        // Setup the board renderer and render the initial board
+        // Setup the renderer and render the initial level run
         let mut level_renderer = LevelRenderer::new(&mut display, &mut neopixels, level_info.level);
 
-        // Setup board and perform the initial render
-        let mut board = Board::new(&level_info);
-        board.render(&mut level_renderer);
+        // Setup the level run and perform the initial render
+        let mut level_run = LevelRun::new(&level_info);
+        level_run.render(&mut level_renderer);
 
-        // Let the user play the board
+        // Let the user play the level
         loop {
             let action = match controller.wait_for_action(&mut delay) {
                 ControlAction::Move(d) => Action::Move(d),
@@ -90,10 +90,10 @@ fn main() -> ! {
                 ControlAction::Select => break,
             };
 
-            let board_changed = board.execute_action(action);
-            board_changed.render(&mut level_renderer);
+            let change = level_run.execute_action(action);
+            change.render(&mut level_renderer);
 
-            if board_changed.winning_status.is_some() {
+            if change.winning_status.is_some() {
                 // Wait for user to proceed
                 controller.wait_for_proceed(&mut delay);
 

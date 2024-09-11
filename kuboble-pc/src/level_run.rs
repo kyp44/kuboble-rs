@@ -1,7 +1,7 @@
 use crate::{colors, ControlAction, CursesExt, PieceExt};
 use easycurses::{constants::acs, EasyCurses};
 use kuboble_core::{
-    board::{render::BoardRenderer, Action, Board, PieceSlid},
+    level_run::{render::LevelRunRenderer, Action, LevelRun, PieceSlid},
     level_select::{LevelInfo, LevelStatus},
     Level, Piece, Space, Vector,
 };
@@ -20,9 +20,9 @@ impl<'a> CursesRenderer<'a> {
         }
     }
 
-    // Converts board position to absolute position.
-    fn board_position(&self, board_position: Vector<u8>) -> Vector<i32> {
-        Vector::new(board_position.x as i32, board_position.y as i32 + 2)
+    // Converts level position to absolute position.
+    fn absolute_position(&self, level_position: Vector<u8>) -> Vector<i32> {
+        Vector::new(level_position.x as i32, level_position.y as i32 + 2)
     }
 
     // Converts HUD row to absolute row.
@@ -51,8 +51,8 @@ impl<'a> CursesRenderer<'a> {
         self.curses.wait_for_key()
     }
 }
-impl BoardRenderer for CursesRenderer<'_> {
-    fn draw_space(&mut self, board_position: Vector<u8>, space: Space) {
+impl LevelRunRenderer for CursesRenderer<'_> {
+    fn draw_space(&mut self, position: Vector<u8>, space: Space) {
         let (color, c) = match space {
             Space::Wall => (colors::MAIN, '#'),
             Space::Goal(piece) => (piece.to_color(), '#'),
@@ -60,14 +60,14 @@ impl BoardRenderer for CursesRenderer<'_> {
         };
 
         self.curses
-            .put_char(self.board_position(board_position), color, c.into())
+            .put_char(self.absolute_position(position), color, c.into())
             .unwrap()
     }
 
-    fn draw_piece(&mut self, board_position: Vector<u8>, piece: Piece, is_active: bool) {
+    fn draw_piece(&mut self, position: Vector<u8>, piece: Piece, is_active: bool) {
         self.curses
             .put_char(
-                self.board_position(board_position),
+                self.absolute_position(position),
                 piece.to_color(),
                 acs::diamond(),
             )
@@ -117,11 +117,11 @@ impl BoardRenderer for CursesRenderer<'_> {
     }
 }
 
-pub fn play_board(curses: &mut EasyCurses, level_info: &LevelInfo) -> Option<LevelStatus> {
-    let mut board = Board::new(&level_info);
+pub fn play_level(curses: &mut EasyCurses, level_info: &LevelInfo) -> Option<LevelStatus> {
+    let mut level_run = LevelRun::new(&level_info);
     let mut renderer = CursesRenderer::new(curses, level_info.level);
 
-    board.render(&mut renderer);
+    level_run.render(&mut renderer);
 
     loop {
         let action = match renderer.wait_for_key() {
@@ -132,17 +132,17 @@ pub fn play_board(curses: &mut EasyCurses, level_info: &LevelInfo) -> Option<Lev
             ControlAction::Restart => Action::Restart,
         };
 
-        let board_changed = board.execute_action(action);
-        board_changed.render(&mut renderer);
+        let change = level_run.execute_action(action);
+        change.render(&mut renderer);
 
-        if board_changed.winning_status.is_some() {
+        if change.winning_status.is_some() {
             loop {
                 if renderer.wait_for_key() == ControlAction::Proceed {
                     break;
                 }
             }
 
-            break board_changed.winning_status;
+            break change.winning_status;
         }
     }
 }

@@ -5,10 +5,10 @@ version = "0.1.0"
 
 [dependencies]
 arrayvec = {version = "0.7.6", default-features = false, features = ["serde"]}
-# Waiting for pull request: https://github.com/JENebel/const_for/pull/3
-const_for = {version = "0.1", git = "https://github.com/kyp44/const_for.git"}
-#const_for = "0.1"
+const_for = "0.1.5"
 itertools = {version = "0.13.0", default-features = false}
+# TODO: This takes a long time to compile evidently, time just how long on DREN!
+#nalgebra = {version = "0.33.0", default-features = false}
 serde = {version = "1.0.209", default-features = false, features = ["derive"]}
 strum = {version = "0.26.3", default-features = false, features = ["derive"]}
 

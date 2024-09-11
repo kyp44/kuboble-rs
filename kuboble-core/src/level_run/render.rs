@@ -1,32 +1,32 @@
-use super::{Board, BoardChanged, PieceSlid, PiecesChanged};
+use super::{LevelRun, LevelRunChange, PieceSlid, PiecesChanged};
 use crate::{level_select::LevelStatus, Piece, Space, Vector};
 
 #[cfg(feature = "std")]
 use super::VecExt;
 
-pub trait BoardRenderer {
-    fn draw_space(&mut self, board_position: Vector<u8>, space: Space);
-    fn draw_piece(&mut self, board_position: Vector<u8>, piece: Piece, is_active: bool);
+pub trait LevelRunRenderer {
+    fn draw_space(&mut self, position: Vector<u8>, space: Space);
+    fn draw_piece(&mut self, position: Vector<u8>, piece: Piece, is_active: bool);
     fn slide_piece(&mut self, piece_slid: &PieceSlid, is_active: bool);
     fn update_num_moves(&mut self, num_moves: u8, at_maximum: bool);
     fn update_constants(&mut self, level_num: u16, goal: u8);
     fn notify_win(&mut self, level_status: LevelStatus);
 }
 
-impl Board<'_> {
-    // For drawing the entire current board
-    pub fn render<R: BoardRenderer>(&self, renderer: &mut R) {
-        let level = self.board_state.level;
+impl LevelRun<'_> {
+    // For drawing the entire current level run
+    pub fn render<R: LevelRunRenderer>(&self, renderer: &mut R) {
+        let level = self.state.level;
 
         // Render level spaces
-        for position in self.board_state.level.all_positions() {
+        for position in self.state.level.all_positions() {
             renderer.draw_space(position, level.get_space(position));
         }
 
         // Render pieces
         for piece in self.level().all_pieces() {
             renderer.draw_piece(
-                self.board_state.piece_position(piece),
+                self.state.piece_position(piece),
                 piece,
                 self.active_piece == piece,
             );
@@ -44,7 +44,7 @@ impl Board<'_> {
 }
 
 impl PiecesChanged<'_> {
-    pub fn render<R: BoardRenderer>(&self, renderer: &mut R) {
+    pub fn render<R: LevelRunRenderer>(&self, renderer: &mut R) {
         match self {
             PiecesChanged::Slid {
                 piece_slid,
@@ -78,8 +78,8 @@ impl PiecesChanged<'_> {
     }
 }
 
-impl BoardChanged<'_> {
-    pub fn render<R: BoardRenderer>(&self, renderer: &mut R) {
+impl LevelRunChange<'_> {
+    pub fn render<R: LevelRunRenderer>(&self, renderer: &mut R) {
         if let Some(pc) = self.pieces_changed.clone() {
             pc.render(renderer);
         }

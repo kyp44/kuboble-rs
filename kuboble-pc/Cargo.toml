@@ -4,7 +4,9 @@ name = "kuboble-pc"
 version = "0.1.0"
 
 [dependencies]
+anyhow = "1.0.87"
 derive-new = "0.7"
 easycurses = "0.13"
 kuboble-core = {path = "../kuboble-core", features = ["std"]}
 #kuboble-core = {path = "../kuboble-core"}
+serde_json = "1.0.128"

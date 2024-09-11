@@ -8,33 +8,6 @@ use kuboble_core::{Piece, Space};
 use serde::Deserialize;
 use std::{fs::File, io::BufReader, io::Write, path::PathBuf};
 
-trait PieceExt {
-    fn goal_char(&self) -> char;
-}
-impl PieceExt for Piece {
-    fn goal_char(&self) -> char {
-        match self {
-            Piece::Green => 'G',
-            Piece::Orange => 'O',
-            Piece::Blue => 'B',
-        }
-    }
-}
-
-trait SpaceExt {
-    fn to_char(&self) -> char;
-}
-impl SpaceExt for Space {
-    fn to_char(&self) -> char {
-        match self {
-            Space::Void => '_',
-            Space::Wall => '#',
-            Space::Free => ' ',
-            Space::Goal(g) => g.goal_char(),
-        }
-    }
-}
-
 trait SizeExt {
     fn into_rust(self) -> Size<RustLevel>;
 }
@@ -65,7 +38,7 @@ impl PointExt for Point<JsonLevel> {
 struct JsonLevel {
     x: u8,
     y: u8,
-    n: usize,
+    _n: usize,
     s: Vec<u8>,
     t: Vec<u8>,
     o: Vec<u8>,
@@ -146,7 +119,7 @@ impl RustLevel {
             );
         }
 
-        // Remove extraneous walls by voiding wall spaces surrounded by other walls (or the edge of the board)
+        // Remove extraneous walls by voiding wall spaces surrounded by other walls (or the edge of the level)
         let void_points = iproduct!(0..spaces.size().0, 0..spaces.size().1)
             .map(|(y, x)| Point::new(x.try_into().unwrap(), y.try_into().unwrap()))
             .filter(|p| {
@@ -188,7 +161,7 @@ impl std::fmt::Display for RustLevel {
         writeln!(f, "level! {{")?;
         writeln!(f, "\tspaces: &[")?;
         for row in self.spaces.iter_rows() {
-            writeln!(f, "\t\t\"{}\",", row.map(|x| x.to_char()).join(""))?;
+            writeln!(f, "\t\t\"{}\",", row.map(|s| char::from(*s)).join(""))?;
         }
         writeln!(f, "\t],")?;
         writeln!(

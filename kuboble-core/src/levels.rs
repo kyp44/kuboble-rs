@@ -1,25 +1,5 @@
-use crate::{Level, Piece, Space, Vector};
+use crate::{Level, Space, Vector};
 use const_for::const_for;
-
-const fn char_to_piece(c: char) -> Piece {
-    match c {
-        'G' => Piece::Green,
-        'O' => Piece::Orange,
-        'B' => Piece::Blue,
-        _ => {
-            panic!("invalid character for piece or space")
-        }
-    }
-}
-
-const fn char_to_space(c: char) -> Space {
-    match c {
-        '_' => Space::Void,
-        '#' => Space::Wall,
-        ' ' => Space::Free,
-        _ => Space::Goal(char_to_piece(c)),
-    }
-}
 
 const fn convert_spaces<const W: usize, const H: usize>(rows: &[&str]) -> [Space; W * H] {
     if rows.len() != H {
@@ -34,7 +14,10 @@ const fn convert_spaces<const W: usize, const H: usize>(rows: &[&str]) -> [Space
         }
 
         const_for!(ci in 0..W => {
-            spaces[ri*W + ci] = char_to_space(row[ci] as char);
+            spaces[ri*W + ci] = match Space::from_char(row[ci] as char) {
+                Some(s) => s,
+                None => panic!("invalid character for piece or space"),
+            };
         });
     });
 
@@ -57,7 +40,7 @@ macro_rules! level {
     };
 }
 
-pub const NUM_LEVELS: usize = 15;
+pub const NUM_LEVELS: usize = 39;
 pub const MAX_OPTIMAL_MOVES: usize = 17;
 
 pub static LEVELS: [Level; NUM_LEVELS] = [
@@ -241,7 +224,7 @@ pub static LEVELS: [Level; NUM_LEVELS] = [
         positions: &[Vector::new(1, 1), Vector::new(2, 1)],
         optimal: 10,
     },
-    /* // Level 16
+    // Level 16
     level! {
         spaces: &[
             "_#####",
@@ -549,5 +532,5 @@ pub static LEVELS: [Level; NUM_LEVELS] = [
         ],
         positions: &[Vector::new(1, 1), Vector::new(2, 1), Vector::new(3, 1)],
         optimal: 9,
-    }, */
+    },
 ];

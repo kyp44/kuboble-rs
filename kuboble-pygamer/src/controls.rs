@@ -1,4 +1,4 @@
-use kuboble_core::board::Direction;
+use kuboble_core::level_run::Direction;
 use pygamer::adc::Adc;
 use pygamer::pac::ADC1;
 use pygamer::pins::{ButtonReader, JoystickReader, Keys};

@@ -8,7 +8,7 @@ use core::mem::variant_count;
 use itertools::iproduct;
 use serde::{Deserialize, Serialize};
 
-pub mod board;
+pub mod level_run;
 pub mod level_select;
 mod levels;
 
@@ -48,7 +48,7 @@ impl From<Vector<u8>> for Vector<usize> {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Piece {
     #[default]
@@ -69,6 +69,15 @@ impl TryFrom<u8> for Piece {
     }
 }
 impl Piece {
+    pub const fn from_char(c: char) -> Option<Self> {
+        match c {
+            'G' => Some(Self::Green),
+            'O' => Some(Self::Orange),
+            'B' => Some(Self::Blue),
+            _ => None,
+        }
+    }
+
     pub fn iter(num: u8) -> impl Iterator<Item = Piece> {
         [Self::Green, Self::Orange, Self::Blue]
             .into_iter()
@@ -77,6 +86,20 @@ impl Piece {
 
     pub fn iter_all() -> impl Iterator<Item = Piece> {
         Self::iter(variant_count::<Piece>().try_into().unwrap())
+    }
+}
+impl From<Piece> for char {
+    fn from(value: Piece) -> Self {
+        match value {
+            Piece::Green => 'G',
+            Piece::Orange => 'O',
+            Piece::Blue => 'B',
+        }
+    }
+}
+impl core::fmt::Display for Piece {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", char::from(*self))
     }
 }
 
@@ -112,7 +135,36 @@ pub enum Space {
     Free,
     Goal(Piece),
 }
+impl Space {
+    pub const fn from_char(c: char) -> Option<Self> {
+        match c {
+            '_' => Some(Space::Void),
+            '#' => Some(Space::Wall),
+            ' ' => Some(Space::Free),
+            _ => match Piece::from_char(c) {
+                Some(p) => Some(Self::Goal(p)),
+                None => None,
+            },
+        }
+    }
+}
+impl From<Space> for char {
+    fn from(value: Space) -> Self {
+        match value {
+            Space::Void => '_',
+            Space::Wall => '#',
+            Space::Free => ' ',
+            Space::Goal(piece) => piece.into(),
+        }
+    }
+}
+impl core::fmt::Display for Space {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", char::from(*self))
+    }
+}
 
+#[derive(Debug)]
 pub struct Level {
     pub size: Vector<u8>,
     spaces: &'static [Space],

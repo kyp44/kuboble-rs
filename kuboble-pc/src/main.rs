@@ -1,15 +1,18 @@
-use board::play_board;
+use std::fs::File;
+
+use derive_new::new;
 use easycurses::{
     preserve_panic_message, Color, ColorPair, CursorVisibility, EasyCurses, Input, InputMode,
 };
 use kuboble_core::{
-    board::Direction,
+    level_run::Direction,
     level_select::{Action, LevelProgress, LevelSelector},
     LevelRating, Piece, Vector,
 };
+use level_run::play_level;
 use level_select::select_level;
 
-mod board;
+mod level_run;
 mod level_select;
 
 mod colors {
@@ -160,30 +163,54 @@ impl CursesExt for EasyCurses {
     }
 }
 
-fn run_game(curses: &mut EasyCurses) {
-    // Setup curses
-    curses
-        .set_cursor_visibility(CursorVisibility::Invisible)
-        .unwrap();
-    curses.set_input_mode(InputMode::Character).unwrap();
-    curses.set_echo(false).unwrap();
-    curses.set_keypad_enabled(true).unwrap();
+const PROGRESS_FILE_NAME: &str = "level-progress.json";
 
-    let mut level_progress = LevelProgress::default();
-    let mut level_selector = LevelSelector::new(&mut level_progress, 10);
+#[derive(new)]
+struct Game {
+    level_progress: LevelProgress,
+}
+impl Game {
+    pub fn run(mut self) -> LevelProgress {
+        preserve_panic_message(move |curses| {
+            // Setup curses
+            curses
+                .set_cursor_visibility(CursorVisibility::Invisible)
+                .unwrap();
+            curses.set_input_mode(InputMode::Character).unwrap();
+            curses.set_echo(false).unwrap();
+            curses.set_keypad_enabled(true).unwrap();
 
-    loop {
-        match select_level(curses, &mut level_selector) {
-            Some(level_info) => {
-                if let Some(status) = play_board(curses, &level_info) {
-                    let _ = level_selector.execute_action(Action::ActiveLevelCompleted(status));
+            let mut level_selector = LevelSelector::new(&mut self.level_progress);
+
+            loop {
+                match select_level(curses, &mut level_selector) {
+                    Some(level_info) => {
+                        if let Some(status) = play_level(curses, &level_info) {
+                            let _ =
+                                level_selector.execute_action(Action::ActiveLevelCompleted(status));
+                        }
+                    }
+                    None => break,
                 }
             }
-            None => break,
-        }
+            drop(level_selector);
+
+            self.level_progress
+        })
+        .unwrap()
     }
 }
 
-fn main() {
-    preserve_panic_message(run_game).unwrap();
+fn load_progress() -> Result<LevelProgress, anyhow::Error> {
+    Ok(serde_json::from_reader(File::open(PROGRESS_FILE_NAME)?)?)
+}
+
+fn main() -> anyhow::Result<()> {
+    let level_progress =
+        Game::new(load_progress().unwrap_or_else(|_| LevelProgress::default())).run();
+
+    // Save out the level progress
+    serde_json::to_writer(File::create(PROGRESS_FILE_NAME)?, &level_progress)?;
+
+    Ok(())
 }

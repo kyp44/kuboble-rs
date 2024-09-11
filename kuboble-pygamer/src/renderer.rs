@@ -6,8 +6,8 @@ use embedded_graphics::text::{Alignment, Baseline, Text, TextStyleBuilder};
 use embedded_graphics::{pixelcolor::Rgb565, primitives::PrimitiveStyle};
 use embedded_graphics_framebuf::FrameBuf;
 use heapless::String;
-use kuboble_core::board::render::BoardRenderer;
-use kuboble_core::board::PieceSlid;
+use kuboble_core::level_run::render::LevelRunRenderer;
+use kuboble_core::level_run::PieceSlid;
 use kuboble_core::level_select::LevelStatus;
 use kuboble_core::{Level, Piece, Space, Vector};
 use pygamer::gpio::v2::PA15;
@@ -59,6 +59,7 @@ impl PieceExt for Piece {
         match self {
             Piece::Green => Rgb565::GREEN,
             Piece::Orange => Rgb565::CSS_ORANGE,
+            Piece::Blue => Rgb565::BLUE,
         }
     }
 
@@ -66,6 +67,7 @@ impl PieceExt for Piece {
         match self {
             Piece::Green => RGB::new(0, 5, 0),
             Piece::Orange => RGB::new(5, 3, 0),
+            Piece::Blue => RGB::new(0, 0, 10),
         }
     }
 }
@@ -73,7 +75,7 @@ impl PieceExt for Piece {
 pub struct LevelRenderer<'a, T> {
     display: &'a mut DisplayDriver,
     neopixels: &'a mut NeoPixels<T>,
-    board_origin: Point,
+    level_origin: Point,
     display_center: Point,
     // This makes updating the number of moves more efficient.
     at_max_moves: bool,
@@ -91,14 +93,14 @@ impl<'a, T: CountDown + Periodic> LevelRenderer<'a, T> {
         Self {
             display,
             neopixels,
-            board_origin: display_center - level.size.into_point() * (SPACE_SIZE as i32 / 2),
+            level_origin: display_center - level.size.into_point() * (SPACE_SIZE as i32 / 2),
             display_center,
             at_max_moves: true,
         }
     }
 
-    fn board_position(&self, board_position: Vector<u8>) -> Point {
-        self.board_origin + board_position.into_point() * SPACE_SIZE as i32
+    fn absolute_position(&self, level_position: Vector<u8>) -> Point {
+        self.level_origin + level_position.into_point() * SPACE_SIZE as i32
     }
 
     fn set_active_piece(&mut self, piece: Piece) {
@@ -124,8 +126,8 @@ impl<'a, T: CountDown + Periodic> LevelRenderer<'a, T> {
         .unwrap();
     }
 }
-impl<T: CountDown + Periodic> BoardRenderer for LevelRenderer<'_, T> {
-    fn draw_space(&mut self, board_position: Vector<u8>, space: Space) {
+impl<T: CountDown + Periodic> LevelRunRenderer for LevelRenderer<'_, T> {
+    fn draw_space(&mut self, position: Vector<u8>, space: Space) {
         const SPACE_COLOR: Rgb565 = Rgb565::CSS_GRAY;
 
         let style = match space {
@@ -141,21 +143,21 @@ impl<T: CountDown + Periodic> BoardRenderer for LevelRenderer<'_, T> {
         };
 
         SPACE_RECT
-            .translate(self.board_position(board_position))
+            .translate(self.absolute_position(position))
             .into_styled(style)
             .draw(self.display)
             .unwrap();
     }
 
-    fn draw_piece(&mut self, board_position: Vector<u8>, piece: Piece, is_active: bool) {
-        Circle::new(self.board_position(board_position), SPACE_SIZE)
+    fn draw_piece(&mut self, position: Vector<u8>, piece: Piece, is_active: bool) {
+        Circle::new(self.absolute_position(position), SPACE_SIZE)
             .into_styled(PrimitiveStyle::with_fill(piece.display_color()))
             .draw(self.display)
             .unwrap();
 
         if is_active {
             Circle::with_center(
-                self.board_position(board_position) + SPACE_RECT.center(),
+                self.absolute_position(position) + SPACE_RECT.center(),
                 SPACE_SIZE / 2,
             )
             .into_styled(PrimitiveStyle::with_fill(Rgb565::WHITE))
@@ -167,7 +169,7 @@ impl<T: CountDown + Periodic> BoardRenderer for LevelRenderer<'_, T> {
     }
 
     fn slide_piece(&mut self, piece_slid: &PieceSlid, is_active: bool) {
-        // TODO: Test code, 4 horizontal tile strip in the middle of the board (level 11).
+        // TODO: Test code, 4 horizontal tile strip in the middle of the level (level 11).
         /* let mut framebuf_backend = [Rgb565::BLACK; 4 * 12 * 12];
         let mut framebuf = FrameBuf::new(
             &mut framebuf_backend,
@@ -196,7 +198,7 @@ impl<T: CountDown + Periodic> BoardRenderer for LevelRenderer<'_, T> {
         self.display
             .fill_contiguous(
                 &Rectangle::new(
-                    self.board_position(Vector::new(1, 2)),
+                    self.level_position(Vector::new(1, 2)),
                     Size::new(4 * SPACE_SIZE, SPACE_SIZE),
                 ),
                 framebuf_backend,
