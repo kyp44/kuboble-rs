@@ -1,0 +1,4 @@
+Possible enhancements:
++ Up and down arrows on level select screen, indicating more levels?
++ Smooth level select scrolling?
++ Page up/down on level select screen? How should this be controlled?

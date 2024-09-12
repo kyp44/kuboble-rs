@@ -5,7 +5,7 @@ default-members = ["kuboble-pc"]
 exclude = ["kuboble-pygamer"]
 members = [
   "kuboble-core",
-  "kuboble-pc",
+  "kuboble-pc", "kuboble-simulator",
   "level-converter",
 ]
 resolver = "2"

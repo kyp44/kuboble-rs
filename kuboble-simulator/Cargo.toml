@@ -1,0 +1,10 @@
+[package]
+edition = "2021"
+name = "kuboble-simulator"
+version = "0.1.0"
+
+[dependencies]
+anyhow = "1.0.88"
+embedded-graphics = "0.8.1"
+embedded-graphics-simulator = "0.7.0"
+kuboble-core = {path = "../kuboble-core"}
