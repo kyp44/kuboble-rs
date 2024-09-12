@@ -38,6 +38,7 @@ impl PointExt for Point<JsonLevel> {
 struct JsonLevel {
     x: u8,
     y: u8,
+    #[serde(rename = "n")]
     _n: usize,
     s: Vec<u8>,
     t: Vec<u8>,

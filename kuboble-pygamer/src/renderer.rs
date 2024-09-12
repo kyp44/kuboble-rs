@@ -206,7 +206,6 @@ impl<T: CountDown + Periodic> LevelRunRenderer for LevelRenderer<'_, T> {
             .unwrap(); */
 
         // TODO: Animate this with constant slide time? Observe how the web version does it
-        // TODO: Is there a sprite system available to make this easier? May not be needed
         self.draw_space(piece_slid.starting_position, piece_slid.starting_space);
         self.draw_piece(
             piece_slid.starting_position

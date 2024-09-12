@@ -52,7 +52,7 @@ fn main() -> ! {
     /* let tc4_clock = clocks.tc4_tc5(&clocks.gclk0()).unwrap();
     let mut neopixels_timer = TimerCounter::tc4_(&tc4_clock, peripherals.TC4, &mut peripherals.MCLK);
     neopixels_timer.start(3.mhz()); */
-    let neopixels_timer = SpinTimer::new(4);
+    let neopixels_timer = SpinTimer::new(5);
     let mut neopixels = pins.neopixel.init(neopixels_timer, &mut pins.port);
 
     // Setup level progress tracker
@@ -71,7 +71,7 @@ fn main() -> ! {
         pins.buttons.init(&mut pins.port),
     );
 
-    let level_info = level_progress.level_info(10);
+    let level_info = level_progress.level_info(59);
     loop {
         // Setup the renderer and render the initial level run
         let mut level_renderer = LevelRenderer::new(&mut display, &mut neopixels, level_info.level);

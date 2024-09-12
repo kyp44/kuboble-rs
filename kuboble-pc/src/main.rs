@@ -206,8 +206,7 @@ fn load_progress() -> Result<LevelProgress, anyhow::Error> {
 }
 
 fn main() -> anyhow::Result<()> {
-    let level_progress =
-        Game::new(load_progress().unwrap_or_else(|_| LevelProgress::default())).run();
+    let level_progress = Game::new(load_progress()?).run(); //.unwrap_or_else(|_| LevelProgress::default())).run();
 
     // Save out the level progress
     serde_json::to_writer(File::create(PROGRESS_FILE_NAME)?, &level_progress)?;

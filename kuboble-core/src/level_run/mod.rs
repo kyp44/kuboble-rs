@@ -4,10 +4,8 @@ use crate::{
 };
 use arrayvec::{ArrayString, ArrayVec};
 use core::{fmt::Write, mem::variant_count, ops::Neg};
-use itertools::iproduct;
 use serde::{de, Deserialize, Serialize};
-use std::sync::LazyLock;
-use strum::{EnumIter, IntoEnumIterator};
+use strum::EnumIter;
 
 pub mod render;
 
@@ -101,27 +99,15 @@ impl<'de> Deserialize<'de> for Move {
     where
         D: serde::Deserializer<'de>,
     {
-        const NUM_VARIANTS: usize = variant_count::<Direction>() * variant_count::<Piece>();
-        static MOVE_VARIANTS_OWNED: LazyLock<ArrayVec<ArrayString<2>, NUM_VARIANTS>> =
-            LazyLock::new(|| {
-                ArrayVec::from_iter(iproduct!(Piece::iter_all(), Direction::iter()).map(
-                    |(piece, dir)| {
-                        let mut s = ArrayString::new();
-                        write!(s, "{piece}{dir}").unwrap();
-                        s
-                    },
-                ))
-            });
-        static MOVE_VARIANTS: LazyLock<ArrayVec<&str, NUM_VARIANTS>> =
-            LazyLock::new(|| MOVE_VARIANTS_OWNED.iter().map(|s| s.as_str()).collect());
+        const MOVE_VARIANTS: &[&str] = &["(see code)"];
 
         let s: ArrayString<2> = ArrayString::deserialize(deserializer)?;
         let cs: ArrayVec<char, 2> = s.chars().collect();
 
         Ok(Move {
-            piece: Piece::from_char(cs[0]).ok_or(de::Error::unknown_variant(&s, &MOVE_VARIANTS))?,
+            piece: Piece::from_char(cs[0]).ok_or(de::Error::unknown_variant(&s, MOVE_VARIANTS))?,
             direction: Direction::from_char(cs[1])
-                .ok_or(de::Error::unknown_variant(&s, &MOVE_VARIANTS))?,
+                .ok_or(de::Error::unknown_variant(&s, MOVE_VARIANTS))?,
         })
     }
 }

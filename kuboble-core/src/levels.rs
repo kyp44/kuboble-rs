@@ -40,8 +40,9 @@ macro_rules! level {
     };
 }
 
-pub const NUM_LEVELS: usize = 39;
+pub const NUM_LEVELS: usize = 60;
 pub const MAX_OPTIMAL_MOVES: usize = 17;
+pub const MAX_SIZE: usize = 6;
 
 pub static LEVELS: [Level; NUM_LEVELS] = [
     // Level 1
@@ -532,5 +533,261 @@ pub static LEVELS: [Level; NUM_LEVELS] = [
         ],
         positions: &[Vector::new(1, 1), Vector::new(2, 1), Vector::new(3, 1)],
         optimal: 9,
+    },
+    // Level 40
+    level! {
+        spaces: &[
+            "######",
+            "#  G #",
+            "#   O#",
+            "# B  #",
+            "######",
+        ],
+        positions: &[Vector::new(1, 1), Vector::new(2, 1), Vector::new(3, 1)],
+        optimal: 9,
+    },
+    // Level 41
+    level! {
+        spaces: &[
+            "######",
+            "#    #",
+            "# G  #",
+            "# B O#",
+            "######",
+        ],
+        positions: &[Vector::new(1, 1), Vector::new(2, 1), Vector::new(3, 1)],
+        optimal: 9,
+    },
+    // Level 42
+    level! {
+        spaces: &[
+            "######",
+            "#   O#",
+            "#  G #",
+            "# B  #",
+            "######",
+        ],
+        positions: &[Vector::new(1, 1), Vector::new(2, 1), Vector::new(3, 1)],
+        optimal: 9,
+    },
+    // Level 43
+    level! {
+        spaces: &[
+            "######",
+            "#    #",
+            "# BO #",
+            "#G   #",
+            "######",
+        ],
+        positions: &[Vector::new(1, 1), Vector::new(2, 1), Vector::new(3, 1)],
+        optimal: 9,
+    },
+    // Level 44
+    level! {
+        spaces: &[
+            "######",
+            "#  G #",
+            "#B#  #",
+            "# O  #",
+            "######",
+        ],
+        positions: &[Vector::new(1, 1), Vector::new(2, 1), Vector::new(3, 1)],
+        optimal: 10,
+    },
+    // Level 45
+    level! {
+        spaces: &[
+            "######",
+            "#O#  #",
+            "#  B #",
+            "#  G #",
+            "######",
+        ],
+        positions: &[Vector::new(4, 3), Vector::new(3, 3), Vector::new(2, 3)],
+        optimal: 10,
+    },
+    // Level 46
+    level! {
+        spaces: &[
+            "######",
+            "# # B#",
+            "# O  #",
+            "# G  #",
+            "######",
+        ],
+        positions: &[Vector::new(4, 3), Vector::new(3, 3), Vector::new(2, 3)],
+        optimal: 10,
+    },
+    // Level 47
+    level! {
+        spaces: &[
+            "######",
+            "#  O #",
+            "# # G#",
+            "# B  #",
+            "######",
+        ],
+        positions: &[Vector::new(1, 1), Vector::new(2, 1), Vector::new(3, 1)],
+        optimal: 10,
+    },
+    // Level 48
+    level! {
+        spaces: &[
+            "_#####",
+            "## #O#",
+            "# G  #",
+            "#  B##",
+            "#####_",
+        ],
+        positions: &[Vector::new(1, 3), Vector::new(2, 3), Vector::new(3, 3)],
+        optimal: 10,
+    },
+    // Level 49
+    level! {
+        spaces: &[
+            "######",
+            "# O G#",
+            "# #  #",
+            "# B  #",
+            "######",
+        ],
+        positions: &[Vector::new(1, 1), Vector::new(2, 1), Vector::new(3, 1)],
+        optimal: 10,
+    },
+    // Level 50
+    level! {
+        spaces: &[
+            "_#####",
+            "##   #",
+            "#O B #",
+            "#G#  #",
+            "######",
+        ],
+        positions: &[Vector::new(4, 1), Vector::new(3, 1), Vector::new(2, 1)],
+        optimal: 11,
+    },
+    // Level 51
+    level! {
+        spaces: &[
+            "_#####",
+            "## B #",
+            "# O  #",
+            "#  G #",
+            "######",
+        ],
+        positions: &[Vector::new(4, 1), Vector::new(3, 1), Vector::new(2, 1)],
+        optimal: 11,
+    },
+    // Level 52
+    level! {
+        spaces: &[
+            "######",
+            "# # B#",
+            "#  O #",
+            "#  #G#",
+            "######",
+        ],
+        positions: &[Vector::new(1, 1), Vector::new(1, 2), Vector::new(1, 3)],
+        optimal: 11,
+    },
+    // Level 53
+    level! {
+        spaces: &[
+            "######",
+            "# #  #",
+            "# G  #",
+            "# O#B#",
+            "######",
+        ],
+        positions: &[Vector::new(1, 1), Vector::new(1, 2), Vector::new(1, 3)],
+        optimal: 11,
+    },
+    // Level 54
+    level! {
+        spaces: &[
+            "_#####",
+            "## G #",
+            "# B# #",
+            "#  O #",
+            "######",
+        ],
+        positions: &[Vector::new(4, 1), Vector::new(3, 1), Vector::new(2, 1)],
+        optimal: 13,
+    },
+    // Level 55
+    level! {
+        spaces: &[
+            "######",
+            "# #  #",
+            "#G#O #",
+            "#  B #",
+            "######",
+        ],
+        positions: &[Vector::new(4, 3), Vector::new(3, 3), Vector::new(2, 3)],
+        optimal: 14,
+    },
+    // Level 56
+    level! {
+        spaces: &[
+            "######",
+            "# #  #",
+            "#G #B#",
+            "#  O #",
+            "######",
+        ],
+        positions: &[Vector::new(4, 3), Vector::new(3, 3), Vector::new(2, 3)],
+        optimal: 15,
+    },
+    // Level 57
+    level! {
+        spaces: &[
+            "######",
+            "#O## #",
+            "#    #",
+            "#  G #",
+            "#  B #",
+            "######",
+        ],
+        positions: &[Vector::new(4, 4), Vector::new(3, 4), Vector::new(2, 4)],
+        optimal: 11,
+    },
+    // Level 58
+    level! {
+        spaces: &[
+            "######",
+            "# ## #",
+            "# O G#",
+            "#  B #",
+            "#    #",
+            "######",
+        ],
+        positions: &[Vector::new(4, 4), Vector::new(3, 4), Vector::new(2, 4)],
+        optimal: 11,
+    },
+    // Level 59
+    level! {
+        spaces: &[
+            "_#####",
+            "##G# #",
+            "#    #",
+            "# O  #",
+            "#  B #",
+            "######",
+        ],
+        positions: &[Vector::new(4, 4), Vector::new(3, 4), Vector::new(2, 4)],
+        optimal: 12,
+    },
+    // Level 60
+    level! {
+        spaces: &[
+            "######",
+            "# # B#",
+            "#    #",
+            "# G O#",
+            "# #  #",
+            "######",
+        ],
+        positions: &[Vector::new(1, 1), Vector::new(1, 2), Vector::new(1, 3)],
+        optimal: 13,
     },
 ];
