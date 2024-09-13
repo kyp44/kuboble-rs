@@ -6,6 +6,6 @@ exclude = ["kuboble-pygamer"]
 members = [
   "kuboble-core",
   "kuboble-pc", "kuboble-simulator",
-  "level-converter",
+  "level-converter", "pygamer-engine",
 ]
 resolver = "2"

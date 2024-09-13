@@ -9,6 +9,7 @@ const_for = "0.1.5"
 itertools = {version = "0.13.0", default-features = false}
 # TODO: This takes a long time to compile evidently, time just how long on DREN!
 #nalgebra = {version = "0.33.0", default-features = false}
+lazy_static = {version = "1.5.0", features = ["spin_no_std"]}
 serde = {version = "1.0.209", default-features = false, features = ["derive"]}
 strum = {version = "0.26.3", default-features = false, features = ["derive"]}
 

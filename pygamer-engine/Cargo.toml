@@ -1,11 +1,11 @@
 [package]
 edition = "2021"
-name = "kuboble-simulator"
+name = "pygamer-engine"
 version = "0.1.0"
 
 [dependencies]
-anyhow = "1.0.88"
 arrayvec = "0.7.6"
-embedded-graphics = "0.8.1"
-embedded-graphics-simulator = "0.7.0"
+embedded-graphics = "0.7"
+embedded-graphics-core = "0.3"
+embedded-graphics-framebuf = "0.2"
 kuboble-core = {path = "../kuboble-core"}

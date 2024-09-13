@@ -1,3 +1,4 @@
+use crate::VectorExt;
 use arrayvec::ArrayString;
 use core::fmt::Write;
 use embedded_graphics::{
@@ -7,41 +8,14 @@ use embedded_graphics::{
     primitives::{Circle, Line, PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, StrokeAlignment},
     text::{Alignment, Baseline, Text, TextStyleBuilder},
 };
-use embedded_graphics_simulator::{
-    sdl2::Keycode, BinaryColorTheme, OutputSettings, OutputSettingsBuilder, SimulatorDisplay,
-    SimulatorEvent, Window,
-};
 use kuboble_core::{
-    level_run::{render::LevelRunRenderer, LevelRun, PieceSlid},
+    level_run::{render::LevelRunRenderer, Direction, LevelRun, PieceSlid},
     level_select::{LevelProgress, LevelStatus},
     Level, Piece, Space, Vector,
 };
 
 const SPACE_SIZE: u32 = 12;
 static SPACE_RECT: Rectangle = Rectangle::new(Point::new(0, 0), Size::new(SPACE_SIZE, SPACE_SIZE));
-const FONT: MonoFont = embedded_graphics::mono_font::ascii::FONT_5X8;
-
-trait VectorExt {
-    fn into_point(self) -> Point;
-}
-impl VectorExt for Vector<u8> {
-    fn into_point(self) -> Point {
-        Point::new(self.x as i32, self.y as i32)
-    }
-}
-
-trait PieceExt {
-    fn display_color(&self) -> Rgb565;
-}
-impl PieceExt for Piece {
-    fn display_color(&self) -> Rgb565 {
-        match self {
-            Piece::Green => Rgb565::GREEN,
-            Piece::Orange => Rgb565::CSS_ORANGE,
-            Piece::Blue => Rgb565::BLUE,
-        }
-    }
-}
 
 pub struct LevelRenderer<'a, D> {
     display: &'a mut D,
@@ -277,40 +251,4 @@ where
         .draw(self.display)
         .unwrap();
     }
-}
-
-fn main() -> anyhow::Result<()> {
-    let mut display = SimulatorDisplay::<Rgb565>::new(Size::new(160, 128));
-
-    // Setup level progress tracker
-    let level_progress = LevelProgress::default();
-    let level_info = level_progress.level_info(59);
-
-    // Setup the renderer and render the initial level run
-    let mut level_renderer = LevelRenderer::new(&mut display, level_info.level);
-
-    // Setup the level run and perform the initial render
-    let mut level_run = LevelRun::new(&level_info);
-    level_run.render(&mut level_renderer);
-
-    let mut window = Window::new("Kuboble", &OutputSettings::default());
-    'running: loop {
-        window.update(&display);
-        for event in window.events() {
-            match event {
-                SimulatorEvent::KeyDown {
-                    keycode,
-                    keymod,
-                    repeat,
-                } => match keycode {
-                    _ => continue,
-                },
-                SimulatorEvent::Quit => break 'running,
-                _ => continue,
-            }
-        }
-        println!("Doodle!");
-    }
-
-    Ok(())
 }
