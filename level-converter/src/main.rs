@@ -231,21 +231,15 @@ fn main() -> anyhow::Result<()> {
         "Maximum optimal number of moves: {}",
         rust_levels.iter().map(|rl| rl.optimal).max().unwrap()
     );
+    let level = rust_levels.iter().max_by_key(|l| l.size.width).unwrap();
     println!(
-        "Maximum width size: {:?}",
-        rust_levels
-            .iter()
-            .map(|rl| rl.size)
-            .max_by_key(|s| s.width)
-            .unwrap()
+        "Maximum height width: Level {} at {:?}",
+        level.level_num, level.size
     );
+    let level = rust_levels.iter().max_by_key(|l| l.size.height).unwrap();
     println!(
-        "Maximum height size: {:?}",
-        rust_levels
-            .iter()
-            .map(|rl| rl.size)
-            .max_by_key(|s| s.height)
-            .unwrap()
+        "Maximum height size: Level {} at {:?}",
+        level.level_num, level.size
     );
 
     let mut rust_file = File::create(

@@ -4,16 +4,15 @@ name = "kuboble-pygamer"
 version = "0.1.0"
 
 [dependencies]
-derive-new = "0.7"
-embedded-graphics = "0.7"
-embedded-graphics-core = "0.3"
-embedded-graphics-framebuf = "0.2"
-heapless = "0.8"
+derive-new = "0.7.0"
+embedded-graphics = "0.7.1"
+embedded-graphics-framebuf = "0.2.0"
 kuboble-core = {path = "../kuboble-core"}
-pygamer = {version = "0.9", features = ["panic_led"]}
-smart-leds = "0.3"
-st7735-lcd = "0.8"
-ws2812-timer-delay = "0.3"
+pygamer = {version = "0.9.0", features = ["panic_led"]}
+pygamer-engine = {path = "../pygamer-engine"}
+smart-leds = "0.3.0"
+st7735-lcd = "0.8.1"
+ws2812-timer-delay = "0.3.0"
 
 [profile.dev]
 debug = true 

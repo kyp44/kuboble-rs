@@ -1,5 +1,6 @@
 use crate::{
     level_select::{LevelInfo, LevelStatus},
+    levels::MAX_STRIP_SIZE,
     Level, LevelRating, Piece, PieceMap, Space, Vector,
 };
 use arrayvec::{ArrayString, ArrayVec};
@@ -47,6 +48,20 @@ impl Direction {
             Self::Down => Vector::new(0, 1),
             Self::Left => Vector::new(-1, 0),
             Self::Right => Vector::new(1, 0),
+        }
+    }
+
+    pub fn is_horizontal(&self) -> bool {
+        match self {
+            Self::Left | Self::Right => true,
+            Self::Up | Self::Down => false,
+        }
+    }
+
+    pub fn is_forward(&self) -> bool {
+        match self {
+            Self::Down | Self::Right => true,
+            Self::Up | Self::Left => false,
         }
     }
 }
@@ -129,20 +144,33 @@ impl<'de> Deserialize<'de> for Move {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PieceSlid {
     pub muv: Move,
-    pub starting_position: Vector<u8>,
-    pub starting_space: Space,
-    pub distance: u8,
+    pub strip_top_left: Vector<u8>,
+    pub strip_spaces: ArrayVec<Space, MAX_STRIP_SIZE>,
 }
 impl PieceSlid {
-    pub fn invert(self, level: &Level) -> Self {
-        let starting_position =
-            self.starting_position + self.muv.direction.as_vector() * self.distance as i8;
+    pub fn starting_position(&self) -> Vector<u8> {
+        match self.muv.direction {
+            Direction::Right | Direction::Down => self.strip_top_left,
+            _ => {
+                self.strip_top_left
+                    + (-self.muv.direction).as_vector()
+                        * (i8::try_from(self.slide_distance()).unwrap())
+            }
+        }
+    }
 
+    pub fn slide_distance(&self) -> u8 {
+        u8::try_from(self.strip_spaces.len()).unwrap() - 1
+    }
+}
+impl Neg for PieceSlid {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
         Self {
             muv: -self.muv,
-            starting_position,
-            starting_space: level.get_space(starting_position),
-            distance: self.distance,
+            strip_top_left: self.strip_top_left,
+            strip_spaces: self.strip_spaces,
         }
     }
 }
@@ -219,9 +247,16 @@ impl LevelRunState<'_> {
             *self.positions.get_mut(muv.piece) = position;
             Some(PieceSlid {
                 muv,
-                starting_position,
-                starting_space: self.level.get_space(starting_position),
-                distance,
+                strip_top_left: starting_position.min(position),
+                strip_spaces: if muv.direction.is_horizontal() {
+                    (starting_position.x.min(position.x)..=starting_position.x.max(position.x))
+                        .map(|x| self.level.get_space(Vector::new(x, position.y)))
+                        .collect()
+                } else {
+                    (starting_position.y.min(position.y)..=starting_position.y.max(position.y))
+                        .map(|y| self.level.get_space(Vector::new(position.x, y)))
+                        .collect()
+                },
             })
         } else {
             None
@@ -230,7 +265,7 @@ impl LevelRunState<'_> {
 }
 
 #[cfg(not(feature = "std"))]
-pub const MAX_MOVES: usize = 50;
+pub const MAX_MOVES: usize = 100;
 
 #[cfg(feature = "std")]
 trait VecExt {
@@ -398,12 +433,12 @@ impl<'a> LevelRun<'a> {
 
             // Apply the inverse move.
             self.state
-                .teleport_piece(undo_slide.muv.piece, undo_slide.starting_position);
+                .teleport_piece(undo_slide.muv.piece, undo_slide.starting_position());
             let is_active = undo_slide.muv.piece == self.active_piece;
 
             LevelRunChange {
                 pieces_changed: Some(PiecesChanged::Slid {
-                    piece_slid: undo_slide.invert(&self.level()),
+                    piece_slid: -undo_slide,
                     is_active,
                     old_active_piece: None,
                 }),

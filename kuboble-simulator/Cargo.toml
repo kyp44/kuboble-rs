@@ -5,7 +5,8 @@ version = "0.1.0"
 
 [dependencies]
 anyhow = "1.0.88"
-arrayvec = "0.7.6"
-embedded-graphics = "0.8.1"
-embedded-graphics-simulator = "0.7.0"
+derive-new = "0.7.0"
+embedded-graphics = "0.7.1"
+embedded-graphics-simulator = "0.4.1"
 kuboble-core = {path = "../kuboble-core"}
+pygamer-engine = {path = "../pygamer-engine"}

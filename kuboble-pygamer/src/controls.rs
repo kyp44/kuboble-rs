@@ -1,8 +1,12 @@
+use core::cell::RefCell;
+
 use kuboble_core::level_run::Direction;
 use pygamer::adc::Adc;
+use pygamer::delay::Delay;
 use pygamer::pac::ADC1;
 use pygamer::pins::{ButtonReader, JoystickReader, Keys};
 use pygamer::prelude::*;
+use pygamer_engine::{ControlAction, Controller};
 
 const JOYSTICK_THRESH: i16 = 1024;
 
@@ -28,40 +32,33 @@ impl JoystickReaderExt for JoystickReader {
     }
 }
 
-pub enum ControlAction {
-    Move(Direction),
-    A,
-    B,
-    Start,
-    Select,
-}
-
-pub struct Controller {
+pub struct PyGamerController<'a> {
+    delay: &'a RefCell<Delay>,
     joystick_adc: Adc<ADC1>,
     joystick_reader: JoystickReader,
     button_reader: ButtonReader,
     last_direction: Option<Direction>,
 }
-impl Controller {
-    // TODO: Use derive-new for this?
+impl<'a> PyGamerController<'a> {
     pub fn new(
+        delay: &'a RefCell<Delay>,
         joystick_adc: Adc<ADC1>,
         joystick_reader: JoystickReader,
         button_reader: ButtonReader,
     ) -> Self {
         Self {
+            delay,
             joystick_adc,
             joystick_reader,
             button_reader,
             last_direction: None,
         }
     }
-    pub fn wait_for_action<D: _embedded_hal_blocking_delay_DelayMs<u32>>(
-        &mut self,
-        delay: &mut D,
-    ) -> ControlAction {
+}
+impl Controller for PyGamerController<'_> {
+    fn wait_for_action(&mut self) -> Option<pygamer_engine::ControlAction> {
         loop {
-            delay.delay_ms(50);
+            self.delay.borrow_mut().delay_ms(50u8);
 
             // Need to debounce the joystick
             let old_direction = self.last_direction;
@@ -71,28 +68,16 @@ impl Controller {
             if new_direction != old_direction
                 && let Some(dir) = new_direction
             {
-                break ControlAction::Move(dir);
+                break Some(ControlAction::Move(dir));
             }
             for key in self.button_reader.events() {
-                return match key {
+                return Some(match key {
                     Keys::SelectDown => ControlAction::Select,
                     Keys::StartDown => ControlAction::Start,
                     Keys::BDown => ControlAction::B,
                     Keys::ADown => ControlAction::A,
                     _ => continue,
-                };
-            }
-        }
-    }
-
-    pub fn wait_for_proceed<D: _embedded_hal_blocking_delay_DelayMs<u32>>(
-        &mut self,
-        delay: &mut D,
-    ) {
-        loop {
-            match self.wait_for_action(delay) {
-                ControlAction::A | ControlAction::Start => break,
-                _ => {}
+                });
             }
         }
     }

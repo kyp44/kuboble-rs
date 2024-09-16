@@ -4,13 +4,13 @@
 #![feature(generic_const_exprs)]
 
 use arrayvec::ArrayVec;
-use core::mem::variant_count;
+use core::{cmp, mem::variant_count};
 use itertools::iproduct;
 use serde::{Deserialize, Serialize};
 
 pub mod level_run;
 pub mod level_select;
-mod levels;
+pub mod levels;
 
 // TODO: Should we switch to something like this instead of our own thing?
 // https://crates.io/crates/nalgebra
@@ -45,6 +45,21 @@ impl core::ops::Mul<i8> for Vector<i8> {
 impl From<Vector<u8>> for Vector<usize> {
     fn from(value: Vector<u8>) -> Self {
         Self::new(value.x.into(), value.y.into())
+    }
+}
+impl<T: Ord> PartialOrd for Vector<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl<T: Ord> Ord for Vector<T> {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
+        let o = self.y.cmp(&other.y);
+
+        match o {
+            cmp::Ordering::Equal => self.x.cmp(&other.x),
+            _ => o,
+        }
     }
 }
 

@@ -4,7 +4,7 @@ name = "pygamer-engine"
 version = "0.1.0"
 
 [dependencies]
-arrayvec = "0.7.6"
+arrayvec = {version = "0.7.6", default-features = false}
 embedded-graphics = "0.7"
 embedded-graphics-core = "0.3"
 embedded-graphics-framebuf = "0.2"

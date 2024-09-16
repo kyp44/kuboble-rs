@@ -1,316 +1,113 @@
-use arrayvec::ArrayString;
 use core::fmt::Write;
+use derive_new::new;
 use embedded_graphics::{
-    mono_font::{ascii::FONT_6X9, MonoFont, MonoTextStyle, MonoTextStyleBuilder},
-    pixelcolor::{BinaryColor, Rgb565},
+    pixelcolor::{PixelColor, Rgb565},
     prelude::*,
-    primitives::{Circle, Line, PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, StrokeAlignment},
-    text::{Alignment, Baseline, Text, TextStyleBuilder},
 };
 use embedded_graphics_simulator::{
     sdl2::Keycode, BinaryColorTheme, OutputSettings, OutputSettingsBuilder, SimulatorDisplay,
     SimulatorEvent, Window,
 };
 use kuboble_core::{
-    level_run::{render::LevelRunRenderer, LevelRun, PieceSlid},
+    level_run::{render::LevelRunRenderer, Direction, LevelRun, PieceSlid},
     level_select::{LevelProgress, LevelStatus},
     Level, Piece, Space, Vector,
 };
+use pygamer_engine::{run_game, ControlAction, Controller, GameDisplay, GameIndicator, GameOutput};
+use std::{cell::RefCell, convert::Infallible};
 
-const SPACE_SIZE: u32 = 12;
-static SPACE_RECT: Rectangle = Rectangle::new(Point::new(0, 0), Size::new(SPACE_SIZE, SPACE_SIZE));
-const FONT: MonoFont = embedded_graphics::mono_font::ascii::FONT_5X8;
+#[derive(new)]
+struct SimulatorController<'a> {
+    window: &'a RefCell<Window>,
+}
+impl Controller for SimulatorController<'_> {
+    fn wait_for_action(&mut self) -> Option<ControlAction> {
+        let mut window = self.window.borrow_mut();
 
-trait VectorExt {
-    fn into_point(self) -> Point;
-}
-impl VectorExt for Vector<u8> {
-    fn into_point(self) -> Point {
-        Point::new(self.x as i32, self.y as i32)
-    }
-}
-
-trait PieceExt {
-    fn display_color(&self) -> Rgb565;
-}
-impl PieceExt for Piece {
-    fn display_color(&self) -> Rgb565 {
-        match self {
-            Piece::Green => Rgb565::GREEN,
-            Piece::Orange => Rgb565::CSS_ORANGE,
-            Piece::Blue => Rgb565::BLUE,
+        loop {
+            for event in window.events() {
+                return Some(match event {
+                    SimulatorEvent::KeyDown {
+                        keycode,
+                        keymod: _,
+                        repeat: _,
+                    } => match keycode {
+                        Keycode::Up => ControlAction::Move(Direction::Up),
+                        Keycode::Down => ControlAction::Move(Direction::Down),
+                        Keycode::Left => ControlAction::Move(Direction::Left),
+                        Keycode::Right => ControlAction::Move(Direction::Right),
+                        Keycode::A => ControlAction::A,
+                        Keycode::S => ControlAction::B,
+                        Keycode::Z => ControlAction::Start,
+                        Keycode::X => ControlAction::Select,
+                        _ => continue,
+                    },
+                    SimulatorEvent::Quit => return None,
+                    _ => continue,
+                });
+            }
         }
     }
 }
 
-pub struct LevelRenderer<'a, D> {
-    display: &'a mut D,
-    level_origin: Point,
-    display_center: Point,
-    at_max_moves: bool,
+struct SimulatorOutput<'a> {
+    display: SimulatorDisplay<Rgb565>,
+    window: &'a RefCell<Window>,
 }
-impl<'a, D: DrawTarget<Color = Rgb565> + OriginDimensions> LevelRenderer<'a, D>
-where
-    D::Error: core::fmt::Debug,
-{
-    pub fn new(display: &'a mut D, level: &'a Level) -> Self {
-        display.clear(Rgb565::BLACK).unwrap();
-
-        let display_center = Rectangle::new(Point::zero(), display.size()).center();
-
+impl<'a> SimulatorOutput<'a> {
+    pub fn new(window: &'a RefCell<Window>) -> Self {
         Self {
-            display,
-            level_origin: display_center - level.size.into_point() * (SPACE_SIZE as i32 / 2),
-            display_center,
-            at_max_moves: true,
+            display: SimulatorDisplay::<Rgb565>::new(Size::new(160, 128)),
+            window,
         }
-    }
-
-    fn absolute_position(&self, level_position: Vector<u8>) -> Point {
-        self.level_origin + level_position.into_point() * SPACE_SIZE as i32
-    }
-
-    fn set_active_piece(&mut self, piece: Piece) {
-        // TODO Need to traitify this probably
-    }
-
-    // TODO: Just temporary
-    pub fn print_test(&mut self, text: &str) {
-        Text::with_text_style(
-            text,
-            Point::zero(),
-            MonoTextStyle::new(&FONT, Rgb565::BLUE),
-            TextStyleBuilder::new()
-                .alignment(Alignment::Left)
-                .baseline(Baseline::Top)
-                .build(),
-        )
-        .draw(self.display)
-        .unwrap();
     }
 }
-impl<'a, D: DrawTarget<Color = Rgb565> + OriginDimensions> LevelRunRenderer for LevelRenderer<'_, D>
-where
-    D::Error: core::fmt::Debug,
-{
-    fn draw_space(&mut self, position: Vector<u8>, space: Space) {
-        const SPACE_COLOR: Rgb565 = Rgb565::CSS_GRAY;
+impl OriginDimensions for SimulatorOutput<'_> {
+    fn size(&self) -> Size {
+        self.display.size()
+    }
+}
+impl DrawTarget for SimulatorOutput<'_> {
+    type Color = Rgb565;
 
-        let style = match space {
-            Space::Void => PrimitiveStyle::with_fill(Rgb565::BLACK),
-            Space::Wall => PrimitiveStyle::with_fill(Rgb565::WHITE),
-            Space::Free => PrimitiveStyle::with_fill(SPACE_COLOR),
-            Space::Goal(piece) => PrimitiveStyleBuilder::new()
-                .stroke_color(piece.display_color())
-                .stroke_width(2)
-                .fill_color(SPACE_COLOR)
-                .stroke_alignment(StrokeAlignment::Inside)
-                .build(),
-        };
+    type Error = <SimulatorDisplay<Rgb565> as DrawTarget>::Error;
 
-        SPACE_RECT
-            .translate(self.absolute_position(position))
-            .into_styled(style)
-            .draw(self.display)
-            .unwrap();
+    fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
+    where
+        I: IntoIterator<Item = Pixel<Self::Color>>,
+    {
+        self.display.draw_iter(pixels)
+    }
+}
+impl GameDisplay for SimulatorOutput<'_> {
+    fn flush(&mut self) {
+        self.window.borrow_mut().update(&self.display);
+    }
+}
+impl GameIndicator for SimulatorOutput<'_> {
+    fn indicate_active_piece(&mut self, _piece: Piece) {
+        // Do nothing because there are no indicators
     }
 
-    fn draw_piece(&mut self, position: Vector<u8>, piece: Piece, is_active: bool) {
-        Circle::new(self.absolute_position(position), SPACE_SIZE)
-            .into_styled(PrimitiveStyle::with_fill(piece.display_color()))
-            .draw(self.display)
-            .unwrap();
-
-        if is_active {
-            Circle::with_center(
-                self.absolute_position(position) + SPACE_RECT.center(),
-                SPACE_SIZE / 2,
-            )
-            .into_styled(PrimitiveStyle::with_fill(Rgb565::WHITE))
-            .draw(self.display)
-            .unwrap();
-
-            self.set_active_piece(piece);
-        }
+    fn indicate_win_rating(&mut self, _rating: kuboble_core::LevelRating) {
+        // Do nothing because there are no indicators
     }
 
-    fn slide_piece(&mut self, piece_slid: &PieceSlid, is_active: bool) {
-        // TODO: Test code, 4 horizontal tile strip in the middle of the level (level 11).
-        /* let mut framebuf_backend = [Rgb565::BLACK; 4 * 12 * 12];
-        let mut framebuf = FrameBuf::new(
-            &mut framebuf_backend,
-            4 * SPACE_SIZE as usize,
-            SPACE_SIZE as usize,
-        );
-        Text::with_text_style(
-            "Tickle tester!",
-            Point::zero(),
-            MonoTextStyleBuilder::new()
-                .font(&FONT)
-                .text_color(Rgb565::YELLOW)
-                .background_color(Rgb565::BLUE)
-                .build(),
-            TextStyleBuilder::new()
-                .alignment(Alignment::Left)
-                .baseline(Baseline::Top)
-                .build(),
-        )
-        .draw(&mut framebuf)
-        .unwrap();
-        Circle::new(Point::new(SPACE_SIZE as i32 * 3, 0), SPACE_SIZE)
-            .into_styled(PrimitiveStyle::with_fill(Rgb565::CSS_HOT_PINK))
-            .draw(&mut framebuf)
-            .unwrap();
-        self.display
-            .fill_contiguous(
-                &Rectangle::new(
-                    self.level_position(Vector::new(1, 2)),
-                    Size::new(4 * SPACE_SIZE, SPACE_SIZE),
-                ),
-                framebuf_backend,
-            )
-            .unwrap(); */
-
-        // TODO: Animate this with constant slide time? Observe how the web version does it
-        self.draw_space(piece_slid.starting_position, piece_slid.starting_space);
-        self.draw_piece(
-            piece_slid.starting_position
-                + piece_slid.muv.direction.as_vector() * piece_slid.distance.try_into().unwrap(),
-            piece_slid.muv.piece,
-            is_active,
-        );
+    fn indicate_nothing(&mut self) {
+        // Do nothing because there are no indicators
     }
-
-    fn update_num_moves(&mut self, num_moves: u8, at_maximum: bool) {
-        let mut fs: ArrayString<12> = ArrayString::new();
-
-        let num_chars = if self.at_max_moves == at_maximum {
-            // Just update the number
-            write!(fs, "{}  ", num_moves).unwrap();
-            7
-        } else {
-            // Need to update the number and texts
-            write!(fs, "Moves: {}  ", num_moves).unwrap();
-            0
-        };
-        self.at_max_moves = at_maximum;
-
-        Text::with_text_style(
-            &fs,
-            Point::new(
-                FONT.character_size.width as i32 * num_chars,
-                self.display.size().height as i32 - 1,
-            ),
-            MonoTextStyleBuilder::new()
-                .font(&FONT)
-                .text_color(if at_maximum {
-                    Rgb565::RED
-                } else {
-                    Rgb565::WHITE
-                })
-                .background_color(Rgb565::BLACK)
-                .build(),
-            TextStyleBuilder::new()
-                .alignment(Alignment::Left)
-                .baseline(Baseline::Bottom)
-                .build(),
-        )
-        .draw(self.display)
-        .unwrap();
-    }
-
-    fn update_constants(&mut self, level_num: u16, goal: u8) {
-        let mut fs: ArrayString<10> = ArrayString::new();
-
-        // Draw level number
-        write!(fs, "Level {}", level_num).unwrap();
-
-        Text::with_text_style(
-            &fs,
-            Point::new(self.display_center.x, 0),
-            MonoTextStyle::new(&FONT, Rgb565::WHITE),
-            TextStyleBuilder::new()
-                .alignment(Alignment::Center)
-                .baseline(Baseline::Top)
-                .build(),
-        )
-        .draw(self.display)
-        .unwrap();
-
-        // Draw the goal
-        fs.clear();
-        write!(fs, "Goal: {}", goal).unwrap();
-        let size = self.display.size();
-
-        Text::with_text_style(
-            &fs,
-            Point::new(size.width as i32, size.height as i32) - Point::new(1, 1),
-            MonoTextStyle::new(&FONT, Rgb565::WHITE),
-            TextStyleBuilder::new()
-                .alignment(Alignment::Right)
-                .baseline(Baseline::Bottom)
-                .build(),
-        )
-        .draw(self.display)
-        .unwrap();
-    }
-
-    fn notify_win(&mut self, level_status: LevelStatus) {
-        let mut fs: ArrayString<24> = ArrayString::new();
-        write!(
-            fs,
-            "You win with {}/5 stars!",
-            level_status.rating().num_stars()
-        )
-        .unwrap();
-
-        // TODO: This needs finalized with location and stars.
-        Text::with_text_style(
-            &fs,
-            Point::new(self.display_center.x, 10),
-            MonoTextStyle::new(&FONT, Rgb565::YELLOW),
-            TextStyleBuilder::new()
-                .alignment(Alignment::Center)
-                .baseline(Baseline::Top)
-                .build(),
-        )
-        .draw(self.display)
-        .unwrap();
-    }
+}
+impl GameOutput for SimulatorOutput<'_> {
+    const SLIDE_SPEED: i32 = 10;
 }
 
 fn main() -> anyhow::Result<()> {
-    let mut display = SimulatorDisplay::<Rgb565>::new(Size::new(160, 128));
+    let window = RefCell::new(Window::new("Kuboble", &OutputSettings::default()));
 
-    // Setup level progress tracker
-    let level_progress = LevelProgress::default();
-    let level_info = level_progress.level_info(59);
-
-    // Setup the renderer and render the initial level run
-    let mut level_renderer = LevelRenderer::new(&mut display, level_info.level);
-
-    // Setup the level run and perform the initial render
-    let mut level_run = LevelRun::new(&level_info);
-    level_run.render(&mut level_renderer);
-
-    let mut window = Window::new("Kuboble", &OutputSettings::default());
-    'running: loop {
-        window.update(&display);
-        for event in window.events() {
-            match event {
-                SimulatorEvent::KeyDown {
-                    keycode,
-                    keymod,
-                    repeat,
-                } => match keycode {
-                    _ => continue,
-                },
-                SimulatorEvent::Quit => break 'running,
-                _ => continue,
-            }
-        }
-        println!("Doodle!");
-    }
+    run_game(
+        SimulatorController::new(&window),
+        SimulatorOutput::new(&window),
+    );
 
     Ok(())
 }

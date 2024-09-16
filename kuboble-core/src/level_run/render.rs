@@ -51,10 +51,10 @@ impl PiecesChanged<'_> {
                 is_active,
                 old_active_piece,
             } => {
-                renderer.slide_piece(piece_slid, *is_active);
                 if let Some(oap) = old_active_piece {
                     renderer.draw_piece(oap.position, oap.piece, false);
                 }
+                renderer.slide_piece(piece_slid, *is_active);
             }
             PiecesChanged::Moved(moved) => {
                 // First, erase the pieces at the old locations
