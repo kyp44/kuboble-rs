@@ -7,6 +7,7 @@ use arrayvec::ArrayVec;
 use core::{cmp, mem::variant_count};
 use itertools::iproduct;
 use serde::{Deserialize, Serialize};
+use strum::{EnumIter, IntoEnumIterator};
 
 pub mod level_run;
 pub mod level_select;
@@ -63,7 +64,7 @@ impl<T: Ord> Ord for Vector<T> {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, EnumIter)]
 #[repr(u8)]
 pub enum Piece {
     #[default]
@@ -92,16 +93,6 @@ impl Piece {
             _ => None,
         }
     }
-
-    pub fn iter(num: u8) -> impl Iterator<Item = Piece> {
-        [Self::Green, Self::Orange, Self::Blue]
-            .into_iter()
-            .take(num as usize)
-    }
-
-    pub fn iter_all() -> impl Iterator<Item = Piece> {
-        Self::iter(variant_count::<Piece>().try_into().unwrap())
-    }
 }
 impl From<Piece> for char {
     fn from(value: Piece) -> Self {
@@ -122,7 +113,7 @@ impl core::fmt::Display for Piece {
 pub struct PieceMap<T>(ArrayVec<T, { variant_count::<Piece>() }>);
 impl<T> PieceMap<T> {
     pub fn pieces(&self) -> impl Iterator<Item = Piece> {
-        Piece::iter(self.0.len().try_into().unwrap())
+        Piece::iter().take(self.0.len())
     }
 
     pub fn get(&self, piece: Piece) -> &T {
@@ -192,7 +183,7 @@ impl Level {
     }
 
     pub fn all_pieces(&self) -> impl Iterator<Item = Piece> {
-        Piece::iter(self.num_pieces())
+        Piece::iter().take(self.num_pieces() as usize)
     }
 
     pub fn user_size(&self) -> Vector<u8> {

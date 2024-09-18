@@ -7,9 +7,8 @@ version = "0.1.0"
 arrayvec = {version = "0.7.6", default-features = false, features = ["serde"]}
 const_for = "0.1.5"
 itertools = {version = "0.13.0", default-features = false}
-# TODO: This takes a long time to compile evidently, time just how long on DREN!
 lazy_static = {version = "1.5.0", features = ["spin_no_std"]}
-#nalgebra = {version = "0.33.0", default-features = false}
+nalgebra = {version = "0.33.0", default-features = false}
 serde = {version = "1.0.209", default-features = false, features = ["derive"]}
 strum = {version = "0.26.3", default-features = false, features = ["derive"]}
 

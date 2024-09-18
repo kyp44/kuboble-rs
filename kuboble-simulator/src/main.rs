@@ -1,32 +1,25 @@
-use core::fmt::Write;
 use derive_new::new;
-use embedded_graphics::{
-    pixelcolor::{PixelColor, Rgb565},
-    prelude::*,
-};
+use embedded_graphics::{pixelcolor::Rgb565, prelude::*};
 use embedded_graphics_simulator::{
-    sdl2::Keycode, BinaryColorTheme, OutputSettings, OutputSettingsBuilder, SimulatorDisplay,
-    SimulatorEvent, Window,
+    sdl2::Keycode, BinaryColorTheme, OutputSettings, SimulatorDisplay, SimulatorEvent, Window,
 };
-use kuboble_core::{
-    level_run::{render::LevelRunRenderer, Direction, LevelRun, PieceSlid},
-    level_select::{LevelProgress, LevelStatus},
-    Level, Piece, Space, Vector,
+use kuboble_core::{level_run::Direction, level_select::LevelProgress, Piece};
+use pygamer_engine::{
+    run_game, ControlAction, Controller, GameDisplay, GameIndicator, GameOutput, GameResult,
 };
-use pygamer_engine::{run_game, ControlAction, Controller, GameDisplay, GameIndicator, GameOutput};
-use std::{cell::RefCell, convert::Infallible};
+use std::{cell::RefCell, fs::File, u32};
 
 #[derive(new)]
 struct SimulatorController<'a> {
     window: &'a RefCell<Window>,
 }
 impl Controller for SimulatorController<'_> {
-    fn wait_for_action(&mut self) -> Option<ControlAction> {
+    fn wait_for_action(&mut self) -> GameResult<ControlAction> {
         let mut window = self.window.borrow_mut();
 
         loop {
             for event in window.events() {
-                return Some(match event {
+                return GameResult::Continue(match event {
                     SimulatorEvent::KeyDown {
                         keycode,
                         keymod: _,
@@ -42,7 +35,7 @@ impl Controller for SimulatorController<'_> {
                         Keycode::X => ControlAction::Select,
                         _ => continue,
                     },
-                    SimulatorEvent::Quit => return None,
+                    SimulatorEvent::Quit => return GameResult::Exit,
                     _ => continue,
                 });
             }
@@ -101,13 +94,34 @@ impl GameOutput for SimulatorOutput<'_> {
     const SLIDE_SPEED: i32 = 10;
 }
 
+const PROGRESS_FILE_NAME: &str = "level-progress.json";
+
+fn load_progress() -> Result<LevelProgress, anyhow::Error> {
+    Ok(serde_json::from_reader(File::open(PROGRESS_FILE_NAME)?)?)
+}
+
 fn main() -> anyhow::Result<()> {
-    let window = RefCell::new(Window::new("Kuboble", &OutputSettings::default()));
+    let mut level_progress = load_progress().unwrap_or_else(|_| LevelProgress::default());
+
+    let window = RefCell::new(Window::new(
+        "Kuboble",
+        &OutputSettings {
+            scale: 3,
+            pixel_spacing: 0,
+            theme: BinaryColorTheme::Default,
+            max_fps: u32::MAX,
+        },
+    ));
 
     run_game(
         SimulatorController::new(&window),
         SimulatorOutput::new(&window),
+        &mut level_progress,
     );
+
+    // Save out the level progress
+    // TODO: Need to do this as part of the engine somehow
+    serde_json::to_writer(File::create(PROGRESS_FILE_NAME)?, &level_progress)?;
 
     Ok(())
 }

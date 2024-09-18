@@ -7,6 +7,7 @@ use itertools::{iproduct, Itertools};
 use kuboble_core::{Piece, Space};
 use serde::Deserialize;
 use std::{fs::File, io::BufReader, io::Write, path::PathBuf};
+use strum::IntoEnumIterator;
 
 trait SizeExt {
     fn into_rust(self) -> Size<RustLevel>;
@@ -133,7 +134,7 @@ impl RustLevel {
         }
 
         // Fill in goal spaces
-        for (n, piece) in value.t.iter().zip(Piece::iter_all()) {
+        for (n, piece) in value.t.iter().zip(Piece::iter()) {
             spaces.set_space(
                 value.space_num_to_point(*n).into_rust(value.size()),
                 Space::Goal(piece),

@@ -119,7 +119,7 @@ impl<'de> Deserialize<'de> for Move {
         const NUM_VARIANTS: usize = variant_count::<Direction>() * variant_count::<Piece>();
         lazy_static! {
             static ref MOVE_VARIANTS_OWNED: ArrayVec<ArrayString<2>, NUM_VARIANTS> =
-                ArrayVec::from_iter(iproduct!(Piece::iter_all(), Direction::iter()).map(
+                ArrayVec::from_iter(iproduct!(Piece::iter(), Direction::iter()).map(
                     |(piece, dir)| {
                         let mut s = ArrayString::new();
                         write!(s, "{piece}{dir}").unwrap();

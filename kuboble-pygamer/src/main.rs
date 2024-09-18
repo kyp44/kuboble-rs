@@ -4,6 +4,7 @@
 
 use controls::PyGamerController;
 use core::cell::RefCell;
+use kuboble_core::level_select::LevelProgress;
 use output::PyGamerOutput;
 use pac::{CorePeripherals, Peripherals};
 use pygamer::adc::Adc;
@@ -30,6 +31,7 @@ fn main() -> ! {
         &mut peripherals.NVMCTRL,
     );
     let mut pins = Pins::new(peripherals.PORT).split();
+    // TODO: use sleeping delay here for battery life? Evidently worth it even for delays of like 50ms
     let mut delay = Delay::new(core.SYST, &mut clocks);
 
     // Initialize the display
@@ -58,6 +60,9 @@ fn main() -> ! {
     let neopixels_timer = SpinTimer::new(4);
     let neopixels = pins.neopixel.init(neopixels_timer, &mut pins.port);
 
+    // TODO Need to read and later write this from EEPROM
+    let mut level_progress = LevelProgress::default();
+
     run_game(
         PyGamerController::new(
             &delay,
@@ -71,7 +76,8 @@ fn main() -> ! {
             pins.buttons.init(&mut pins.port),
         ),
         PyGamerOutput::new(display, neopixels),
+        &mut level_progress,
     );
 
-    panic!();
+    loop {}
 }

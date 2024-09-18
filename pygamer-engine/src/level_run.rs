@@ -1,23 +1,23 @@
-use crate::{GameOutput, PieceExt, VectorExt, FONT};
+use crate::{assets, SPACE_RECT, SPACE_SIZE};
+use crate::{ControlAction, Controller, GameOutput, GameResult, PieceExt, VectorExt, FONT};
 use arrayvec::ArrayString;
-use core::fmt::Write;
+use core::{fmt::Write, ops::Deref};
 use embedded_graphics::{
+    image::Image,
     mono_font::{MonoTextStyle, MonoTextStyleBuilder},
     pixelcolor::Rgb565,
     prelude::*,
-    primitives::{Circle, PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, StrokeAlignment},
+    primitives::{PrimitiveStyleBuilder, Rectangle, StrokeAlignment},
     text::{Alignment, Baseline, Text, TextStyleBuilder},
 };
 use embedded_graphics_framebuf::FrameBuf;
+use embedded_sprites::sprite::Sprite;
 use kuboble_core::{
-    level_run::{render::LevelRunRenderer, PieceSlid},
-    level_select::LevelStatus,
+    level_run::{render::LevelRunRenderer, Action, LevelRun, PieceSlid},
+    level_select::{LevelInfo, LevelStatus},
     levels::MAX_STRIP_SIZE,
     Level, Piece, Space, Vector,
 };
-
-const SPACE_SIZE: u32 = 14;
-static SPACE_RECT: Rectangle = Rectangle::new(Point::new(0, 0), Size::new(SPACE_SIZE, SPACE_SIZE));
 
 pub struct LevelRenderer<'a, G> {
     output: &'a mut G,
@@ -53,41 +53,41 @@ where
     ) where
         D::Error: core::fmt::Debug,
     {
-        const SPACE_COLOR: Rgb565 = Rgb565::CSS_GRAY;
+        match space {
+            Space::Void => return,
+            Space::Wall => {
+                Sprite::new(point, &assets::spaces::WALL)
+                    .draw(target)
+                    .unwrap();
+            }
+            Space::Free => {
+                Sprite::new(point, &assets::spaces::FREE)
+                    .draw(target)
+                    .unwrap();
+            }
+            Space::Goal(piece) => {
+                Sprite::new(point, &assets::spaces::FREE)
+                    .draw(target)
+                    .unwrap();
 
-        let style = match space {
-            Space::Void => PrimitiveStyle::with_fill(Rgb565::BLACK),
-            Space::Wall => PrimitiveStyle::with_fill(Rgb565::WHITE),
-            Space::Free => PrimitiveStyle::with_fill(SPACE_COLOR),
-            Space::Goal(piece) => PrimitiveStyleBuilder::new()
-                .stroke_color(piece.display_color())
-                .stroke_width(2)
-                .fill_color(SPACE_COLOR)
-                .stroke_alignment(StrokeAlignment::Inside)
-                .build(),
-        };
-
-        SPACE_RECT
-            .translate(point)
-            .into_styled(style)
-            .draw(target)
-            .unwrap();
+                Rectangle::new(point + Point::new(2, 2), SPACE_RECT.size - Size::new(3, 3))
+                    .into_styled(
+                        PrimitiveStyleBuilder::new()
+                            .stroke_color(piece.display_color())
+                            .stroke_width(1)
+                            .stroke_alignment(StrokeAlignment::Inside)
+                            .build(),
+                    )
+                    .draw(target)
+                    .unwrap();
+            }
+        }
     }
 
     fn draw_piece_absolute(&mut self, point: Point, piece: Piece, is_active: bool) {
-        Circle::new(point, SPACE_SIZE)
-            .into_styled(PrimitiveStyle::with_fill(piece.display_color()))
+        Sprite::new(point, &piece.image(is_active))
             .draw(self.output)
             .unwrap();
-
-        if is_active {
-            Circle::with_center(point + SPACE_RECT.center(), SPACE_SIZE / 2)
-                .into_styled(PrimitiveStyle::with_fill(Rgb565::WHITE))
-                .draw(self.output)
-                .unwrap();
-
-            self.output.indicate_active_piece(piece);
-        }
 
         self.output.flush();
     }
@@ -98,6 +98,7 @@ where
 {
     fn draw_space(&mut self, position: Vector<u8>, space: Space) {
         Self::draw_space_absolute(self.output, self.absolute_position(position), space);
+
         self.output.flush();
     }
 
@@ -279,5 +280,38 @@ where
         .unwrap();
 
         self.output.flush();
+    }
+}
+
+pub fn play_level<C: Controller, G: GameOutput>(
+    controller: &mut C,
+    output: &mut G,
+    level_info: &LevelInfo,
+) -> GameResult<Option<LevelStatus>>
+where
+    <G as DrawTarget>::Error: core::fmt::Debug,
+{
+    let mut level_run = LevelRun::new(level_info);
+    let mut renderer = LevelRenderer::new(output, level_info.level);
+
+    level_run.render(&mut renderer);
+
+    loop {
+        let action = match controller.wait_for_action()? {
+            ControlAction::Move(dir) => Action::Move(dir),
+            ControlAction::A => Action::ChangeActivePiece,
+            ControlAction::B => Action::UndoMove,
+            ControlAction::Start => Action::Restart,
+            ControlAction::Select => return GameResult::Continue(None),
+        };
+
+        let change = level_run.execute_action(action);
+        change.render(&mut renderer);
+
+        if change.winning_status.is_some() {
+            controller.wait_for_proceed()?;
+
+            break GameResult::Continue(change.winning_status);
+        }
     }
 }

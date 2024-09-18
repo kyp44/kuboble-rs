@@ -6,7 +6,7 @@ use pygamer::delay::Delay;
 use pygamer::pac::ADC1;
 use pygamer::pins::{ButtonReader, JoystickReader, Keys};
 use pygamer::prelude::*;
-use pygamer_engine::{ControlAction, Controller};
+use pygamer_engine::{ControlAction, Controller, GameResult};
 
 const JOYSTICK_THRESH: i16 = 1024;
 
@@ -56,7 +56,7 @@ impl<'a> PyGamerController<'a> {
     }
 }
 impl Controller for PyGamerController<'_> {
-    fn wait_for_action(&mut self) -> Option<pygamer_engine::ControlAction> {
+    fn wait_for_action(&mut self) -> GameResult<ControlAction> {
         loop {
             self.delay.borrow_mut().delay_ms(50u8);
 
@@ -68,10 +68,10 @@ impl Controller for PyGamerController<'_> {
             if new_direction != old_direction
                 && let Some(dir) = new_direction
             {
-                break Some(ControlAction::Move(dir));
+                break GameResult::Continue(ControlAction::Move(dir));
             }
             for key in self.button_reader.events() {
-                return Some(match key {
+                return GameResult::Continue(match key {
                     Keys::SelectDown => ControlAction::Select,
                     Keys::StartDown => ControlAction::Start,
                     Keys::BDown => ControlAction::B,

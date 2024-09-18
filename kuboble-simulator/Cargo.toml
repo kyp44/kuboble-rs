@@ -10,3 +10,4 @@ embedded-graphics = "0.7.1"
 embedded-graphics-simulator = "0.4.1"
 kuboble-core = {path = "../kuboble-core"}
 pygamer-engine = {path = "../pygamer-engine"}
+serde_json = "1.0.128"
