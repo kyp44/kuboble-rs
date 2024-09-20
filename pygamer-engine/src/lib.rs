@@ -23,6 +23,8 @@ mod level_select;
 
 const FONT: MonoFont = embedded_graphics::mono_font::ascii::FONT_5X8;
 
+pub const DISPLAY_SIZE: Size = Size::new(160, 128);
+
 const SPACE_SIZE: u32 = 14;
 static SPACE_RECT: Rectangle = Rectangle::new(Point::new(0, 0), Size::new(SPACE_SIZE, SPACE_SIZE));
 
@@ -47,20 +49,29 @@ mod assets {
         #[include_image]
         pub const GREEN_ACTIVE: Image<Rgb565> = "assets/pieces/green_active.png";
         #[include_image]
+        pub const GREEN_SMALL: Image<Rgb565> = "assets/pieces/green_small.png";
+        #[include_image]
         pub const ORANGE: Image<Rgb565> = "assets/pieces/orange.png";
         #[include_image]
         pub const ORANGE_ACTIVE: Image<Rgb565> = "assets/pieces/orange_active.png";
         #[include_image]
+        pub const ORANGE_SMALL: Image<Rgb565> = "assets/pieces/orange_small.png";
+        #[include_image]
         pub const BLUE: Image<Rgb565> = "assets/pieces/blue.png";
         #[include_image]
         pub const BLUE_ACTIVE: Image<Rgb565> = "assets/pieces/blue_active.png";
+        #[include_image]
+        pub const BLUE_SMALL: Image<Rgb565> = "assets/pieces/blue_small.png";
+
+        // Annoyingly, embedded_sprites::image::Image has no way to get the image size.
+        pub static SMALL_SIZE: Size = Size::new(8, 8);
     }
 
     pub mod stars {
         use super::*;
 
         // Annoyingly, embedded_sprites::image::Image has no way to get the image size.
-        pub static STAR_SIZE: Size = Size::new(11, 10);
+        pub static STAR_SIZE: Size = Size::new(9, 10);
 
         #[include_image]
         pub const STAR_ACTIVE: Image<Rgb565> = "assets/stars/star_active.png";
@@ -69,18 +80,27 @@ mod assets {
     }
 }
 
-trait VectorExt {
+trait IntoPoint {
     fn into_point(self) -> Point;
 }
-impl<T: Into<i32>> VectorExt for Vector<T> {
+impl<T: Into<i32>> IntoPoint for Vector<T> {
     fn into_point(self) -> Point {
         Point::new(self.x.into(), self.y.into())
+    }
+}
+trait TryIntoSize<E> {
+    fn try_into_size(self) -> Result<Size, E>;
+}
+impl<T: TryInto<u32>> TryIntoSize<T::Error> for Vector<T> {
+    fn try_into_size(self) -> Result<Size, T::Error> {
+        Ok(Size::new(self.x.try_into()?, self.y.try_into()?))
     }
 }
 
 trait PieceExt {
     fn display_color(&self) -> Rgb565;
     fn image(&self, is_active: bool) -> Image<Rgb565>;
+    fn image_small(&self) -> Image<Rgb565>;
 }
 impl PieceExt for Piece {
     fn display_color(&self) -> Rgb565 {
@@ -116,33 +136,36 @@ impl PieceExt for Piece {
             }
         }
     }
+
+    fn image_small(&self) -> Image<Rgb565> {
+        match self {
+            Piece::Green => assets::pieces::GREEN_SMALL,
+            Piece::Orange => assets::pieces::ORANGE_SMALL,
+            Piece::Blue => assets::pieces::BLUE_SMALL,
+        }
+    }
 }
 
+#[derive(new)]
 struct Stars {
-    upper_left: Point,
+    top_left: Point,
     num_active: u8,
     num_stars: u8,
 }
 impl Stars {
-    pub fn new(num_active: u8, num_stars: u8) -> Self {
-        Self {
-            upper_left: Point::zero(),
-            num_active,
-            num_stars,
-        }
-    }
-}
-impl Stars {
-    pub fn set_center(&mut self, center: Point) {
-        self.upper_left = Point::zero();
-        self.upper_left = center - self.bounding_box().center();
+    #[inline]
+    fn width_with_gap() -> u32 {
+        STAR_SIZE.width + 1
     }
 }
 impl Dimensions for Stars {
     fn bounding_box(&self) -> Rectangle {
         Rectangle::new(
-            self.upper_left,
-            Size::new(STAR_SIZE.width * self.num_stars as u32, STAR_SIZE.height),
+            self.top_left,
+            Size::new(
+                Self::width_with_gap() * self.num_stars as u32,
+                STAR_SIZE.height,
+            ),
         )
     }
 }
@@ -157,14 +180,14 @@ impl Drawable for Stars {
     {
         for i in 0..self.num_active {
             Sprite::new(
-                self.upper_left + Point::new(i as i32 * STAR_SIZE.width as i32, 0),
+                self.top_left + Point::new(i as i32 * Self::width_with_gap() as i32, 0),
                 &assets::stars::STAR_ACTIVE,
             )
             .draw(target)?
         }
         for i in self.num_active..self.num_stars {
             Sprite::new(
-                self.upper_left + Point::new(i as i32 * STAR_SIZE.width as i32, 0),
+                self.top_left + Point::new(i as i32 * Self::width_with_gap() as i32, 0),
                 &assets::stars::STAR_INACTIVE,
             )
             .draw(target)?
@@ -175,11 +198,15 @@ impl Drawable for Stars {
 }
 
 trait LevelRatingExt {
-    fn stars(&self) -> Stars;
+    fn stars(&self, point: Point) -> Stars;
 }
 impl LevelRatingExt for LevelRating {
-    fn stars(&self) -> Stars {
-        Stars::new(self.num_stars(), Self::maximum_possible().num_stars())
+    fn stars(&self, point: Point) -> Stars {
+        Stars::new(
+            point,
+            self.num_stars(),
+            Self::maximum_possible().num_stars(),
+        )
     }
 }
 
@@ -246,7 +273,7 @@ pub trait GameOutput: GameDisplay + GameIndicator {
     fn print_test(&mut self, text: &str)
     where
         Self: Sized,
-        <Self as DrawTarget>::Error: core::fmt::Debug,
+        Self::Error: core::fmt::Debug,
     {
         embedded_graphics::text::Text::with_text_style(
             text,
@@ -273,7 +300,7 @@ pub fn run_game<C: Controller, G: GameOutput>(
     level_progress: &mut LevelProgress,
 ) -> GameResult<!>
 where
-    <G as DrawTarget>::Error: core::fmt::Debug,
+    G::Error: core::fmt::Debug,
 {
     let mut level_selector = LevelSelector::new(level_progress);
 

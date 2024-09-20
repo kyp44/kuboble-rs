@@ -4,6 +4,7 @@ use strum::IntoEnumIterator;
 pub trait LevelSelectRenderer {
     fn draw_level_slot(&mut self, level_slot_info: &LevelSlotInfo);
     fn update_filter(&mut self, filter: Filter, is_active: bool);
+    fn update_num_locked(&mut self, num_locked: u16);
 }
 
 impl<const W: usize> LevelSelector<'_, W> {
@@ -17,6 +18,9 @@ impl<const W: usize> LevelSelector<'_, W> {
         for slot in self.window_slots() {
             renderer.draw_level_slot(&slot);
         }
+
+        // Draw locked levels
+        renderer.update_num_locked(self.level_progress.num_locked_levels() as u16);
     }
 }
 
@@ -31,6 +35,11 @@ impl<const W: usize> LevelSelectorChange<W> {
         if let Some(ref filter_change) = self.filter_change {
             renderer.update_filter(filter_change.inactive, false);
             renderer.update_filter(filter_change.active, true);
+        }
+
+        // Render locked levels if changed
+        if let Some(n) = self.num_locked_change {
+            renderer.update_num_locked(n);
         }
     }
 }

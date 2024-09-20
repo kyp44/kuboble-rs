@@ -1,9 +1,8 @@
-use crate::{assets, SPACE_RECT, SPACE_SIZE};
-use crate::{ControlAction, Controller, GameOutput, GameResult, PieceExt, VectorExt, FONT};
+use crate::{assets, TryIntoSize, SPACE_RECT, SPACE_SIZE};
+use crate::{ControlAction, Controller, GameOutput, GameResult, IntoPoint, PieceExt, FONT};
 use arrayvec::ArrayString;
-use core::{fmt::Write, ops::Deref};
+use core::fmt::Write;
 use embedded_graphics::{
-    image::Image,
     mono_font::{MonoTextStyle, MonoTextStyleBuilder},
     pixelcolor::Rgb565,
     prelude::*,
@@ -21,29 +20,30 @@ use kuboble_core::{
 
 pub struct LevelRenderer<'a, G> {
     output: &'a mut G,
-    level_origin: Point,
+    level_rect: Rectangle,
     display_center: Point,
     at_max_moves: bool,
 }
 impl<'a, G: GameOutput> LevelRenderer<'a, G>
 where
-    <G as DrawTarget>::Error: core::fmt::Debug,
+    G::Error: core::fmt::Debug,
 {
     pub fn new(output: &'a mut G, level: &'a Level) -> Self {
         output.clear(Rgb565::BLACK).unwrap();
 
         let display_center = Rectangle::new(Point::zero(), output.size()).center();
+        let level_size = level.size.try_into_size().unwrap() * SPACE_SIZE as u32;
 
         Self {
             output,
-            level_origin: display_center - level.size.into_point() * (SPACE_SIZE as i32 / 2),
+            level_rect: Rectangle::new(display_center - level_size / 2, level_size),
             display_center,
             at_max_moves: true,
         }
     }
 
     fn absolute_position(&self, level_position: Vector<u8>) -> Point {
-        self.level_origin + level_position.into_point() * SPACE_SIZE as i32
+        self.level_rect.top_left + level_position.into_point() * SPACE_SIZE as i32
     }
 
     fn draw_space_absolute<D: DrawTarget<Color = Rgb565>>(
@@ -94,7 +94,7 @@ where
 }
 impl<'a, G: GameOutput> LevelRunRenderer for LevelRenderer<'_, G>
 where
-    <G as DrawTarget>::Error: core::fmt::Debug,
+    G::Error: core::fmt::Debug,
 {
     fn draw_space(&mut self, position: Vector<u8>, space: Space) {
         Self::draw_space_absolute(self.output, self.absolute_position(position), space);
@@ -107,6 +107,7 @@ where
     }
 
     fn slide_piece(&mut self, piece_slid: &PieceSlid, is_active: bool) {
+        // TODO: If we ever get to upgrade `embedded-graphics`, it now has a built-in framebuffer so maybe switch to that if possible.
         // Create a frame buffer for the slide strip, though this will likely be larger than needed
         let mut framebuf_backend =
             [Rgb565::BLACK; MAX_STRIP_SIZE * SPACE_SIZE as usize * SPACE_SIZE as usize];
@@ -289,7 +290,7 @@ pub fn play_level<C: Controller, G: GameOutput>(
     level_info: &LevelInfo,
 ) -> GameResult<Option<LevelStatus>>
 where
-    <G as DrawTarget>::Error: core::fmt::Debug,
+    G::Error: core::fmt::Debug,
 {
     let mut level_run = LevelRun::new(level_info);
     let mut renderer = LevelRenderer::new(output, level_info.level);

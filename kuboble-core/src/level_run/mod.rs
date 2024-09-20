@@ -153,14 +153,13 @@ impl PieceSlid {
             Direction::Right | Direction::Down => self.strip_top_left,
             _ => {
                 self.strip_top_left
-                    + (-self.muv.direction).as_vector()
-                        * (i8::try_from(self.slide_distance()).unwrap())
+                    + (-self.muv.direction).as_vector() * self.slide_distance() as i8
             }
         }
     }
 
     pub fn slide_distance(&self) -> u8 {
-        u8::try_from(self.strip_spaces.len()).unwrap() - 1
+        self.strip_spaces.len() as u8 - 1
     }
 }
 impl Neg for PieceSlid {
@@ -337,7 +336,7 @@ impl<'a> LevelRun<'a> {
     }
 
     fn num_moves(&self) -> u8 {
-        self.move_stack.len().try_into().unwrap()
+        self.move_stack.len() as u8
     }
 
     fn winning_status(&self) -> Option<LevelStatus> {

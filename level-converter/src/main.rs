@@ -123,7 +123,7 @@ impl RustLevel {
 
         // Remove extraneous walls by voiding wall spaces surrounded by other walls (or the edge of the level)
         let void_points = iproduct!(0..spaces.size().0, 0..spaces.size().1)
-            .map(|(y, x)| Point::new(x.try_into().unwrap(), y.try_into().unwrap()))
+            .map(|(y, x)| Point::new(x as u8, y as u8))
             .filter(|p| {
                 spaces.get_space(*p).unwrap() == Space::Wall
                     && spaces.is_surrounded_by(*p, Space::Wall)
@@ -220,9 +220,7 @@ fn main() -> anyhow::Result<()> {
         .into_iter()
         .zip(optimal_moves)
         .enumerate()
-        .map(|(idx, (jl, optimal))| {
-            RustLevel::from_json_level(jl, u16::try_from(idx + 1).unwrap(), optimal)
-        })
+        .map(|(idx, (jl, optimal))| RustLevel::from_json_level(jl, idx as u16 + 1, optimal))
         .collect_vec();
 
     // Determine other

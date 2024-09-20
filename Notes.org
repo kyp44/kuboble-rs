@@ -1,4 +1,10 @@
 Possible enhancements:
 + Up and down arrows on level select screen, indicating more levels?
-+ Smooth level select scrolling?
 + Page up/down on level select screen? How should this be controlled?
++ Title screen?
++ Winning and level select rating indicators using NeoPixels
+Things to do:
++ See if we can use enum map instead of PieceMap
++ Finalize level run winning display
++ Save progress to flash on PG
++ JSON save on PG

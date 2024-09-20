@@ -6,6 +6,7 @@ use embedded_graphics_simulator::{
 use kuboble_core::{level_run::Direction, level_select::LevelProgress, Piece};
 use pygamer_engine::{
     run_game, ControlAction, Controller, GameDisplay, GameIndicator, GameOutput, GameResult,
+    DISPLAY_SIZE,
 };
 use std::{cell::RefCell, fs::File, u32};
 
@@ -50,7 +51,7 @@ struct SimulatorOutput<'a> {
 impl<'a> SimulatorOutput<'a> {
     pub fn new(window: &'a RefCell<Window>) -> Self {
         Self {
-            display: SimulatorDisplay::<Rgb565>::new(Size::new(160, 128)),
+            display: SimulatorDisplay::<Rgb565>::new(DISPLAY_SIZE),
             window,
         }
     }

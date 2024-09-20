@@ -13,9 +13,7 @@ pub mod level_run;
 pub mod level_select;
 pub mod levels;
 
-// TODO: Should we switch to something like this instead of our own thing?
-// https://crates.io/crates/nalgebra
-// This is compatible with embedded-graphics point types too in that it provides conversions... might be nice.
+// NOTE: We cannot use a library like `nalgebra` because we need a const constructor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Vector<T> {
     pub x: T,
@@ -30,10 +28,7 @@ impl core::ops::Add<Vector<i8>> for Vector<u8> {
     type Output = Vector<u8>;
 
     fn add(self, rhs: Vector<i8>) -> Self::Output {
-        Self::new(
-            (self.x as i8 + rhs.x).try_into().unwrap(),
-            (self.y as i8 + rhs.y).try_into().unwrap(),
-        )
+        Self::new((self.x as i8 + rhs.x) as u8, (self.y as i8 + rhs.y) as u8)
     }
 }
 impl core::ops::Mul<i8> for Vector<i8> {
@@ -179,7 +174,7 @@ pub struct Level {
 }
 impl Level {
     pub fn num_pieces(&self) -> u8 {
-        self.starting_positions.len().try_into().unwrap()
+        self.starting_positions.len() as u8
     }
 
     pub fn all_pieces(&self) -> impl Iterator<Item = Piece> {
