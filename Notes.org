@@ -1,10 +1,17 @@
 Possible enhancements:
-+ Up and down arrows on level select screen, indicating more levels?
-+ Page up/down on level select screen? How should this be controlled?
-+ Title screen?
-+ Winning and level select rating indicators using NeoPixels
 Things to do:
 + See if we can use enum map instead of PieceMap
++ Compile feature to unlock all levels
++ Winning notification
+  * Spiral or scan blackout of level tiles
+  * Leave pieces?
+  * Scan in test and stars
+  * Show twinkling stars on NeoPixels
++ Level select screen
+  * Use select to toggle the filter
+  * Left/right to page up and down
+  * Show non-twinkling level rating of selected level
 + Finalize level run winning display
 + Save progress to flash on PG
 + JSON save on PG
++ Title screen with import/export progress
