@@ -20,6 +20,7 @@ use kuboble_core::{
         render::LevelSelectRenderer, Action, Direction, Filter, LevelInfo, LevelSelector,
         LevelSlotInfo,
     },
+    BufferedRenderer, LevelRating,
 };
 
 const LEVEL_WINDOW_SIZE: usize = 7;
@@ -127,7 +128,12 @@ where
         )
     }
 }
-impl<'a, G: GameOutput> LevelSelectRenderer for SelectRenderer<'_, G>
+impl<G: GameOutput> BufferedRenderer for SelectRenderer<'_, G> {
+    fn flush(&mut self) {
+        self.output.flush();
+    }
+}
+impl<G: GameOutput> LevelSelectRenderer for SelectRenderer<'_, G>
 where
     G::Error: core::fmt::Debug,
 {
@@ -214,8 +220,6 @@ where
                 .unwrap();
             }
         }
-
-        self.output.flush();
     }
 
     fn update_filter(&mut self, filter: Filter, is_active: bool) {
@@ -253,8 +257,6 @@ where
                 stars.draw(self.output).unwrap();
             }
         };
-
-        self.output.flush();
     }
 
     fn update_num_locked(&mut self, num_locked: u16) {
@@ -274,8 +276,13 @@ where
         )
         .draw(self.output)
         .unwrap();
+    }
 
-        self.output.flush();
+    fn update_active_rating(&mut self, rating: Option<LevelRating>) {
+        match rating {
+            Some(r) => self.output.indicate_win_rating(r),
+            None => self.output.indicate_nothing(),
+        }
     }
 }
 
@@ -295,9 +302,12 @@ where
             ControlAction::Move(dir) => match dir {
                 ControlDirection::Up => Action::ChangeActiveLevel(Direction::Previous),
                 ControlDirection::Down => Action::ChangeActiveLevel(Direction::Next),
-                ControlDirection::Left => Action::ChangeActiveFilter(Direction::Previous),
-                ControlDirection::Right => Action::ChangeActiveFilter(Direction::Next),
+                // TODO left and right to page up/down
+                //ControlDirection::Left => Action::ChangeActiveFilter(Direction::Previous),
+                //ControlDirection::Right => Action::ChangeActiveFilter(Direction::Next),
+                _ => continue,
             },
+            ControlAction::Select => Action::ChangeActiveFilter(Direction::Next),
             ControlAction::A | ControlAction::Start => match level_selector.active_level_info() {
                 Some(level_info) => return GameResult::Continue(level_info),
                 None => continue,

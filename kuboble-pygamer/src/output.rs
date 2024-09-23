@@ -1,4 +1,5 @@
-use derive_new::new;
+use core::iter::{repeat, repeat_n};
+
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
 use kuboble_core::{LevelRating, Piece};
@@ -14,7 +15,7 @@ use pygamer::{
         Pad, SPIMaster4,
     },
 };
-use pygamer_engine::{GameDisplay, GameIndicator, GameOutput};
+use pygamer_engine::{BufferedDisplay, GameDisplay, GameIndicator, GameOutput};
 use smart_leds::{SmartLedsWrite, RGB};
 use ws2812_timer_delay::Ws2812;
 
@@ -43,14 +44,25 @@ impl PieceExt for Piece {
     }
 }
 
-#[derive(new)]
+const STAR_COLOR: RGB<u8> = RGB::new(4, 4, 0);
+
 pub struct PyGamerOutput<T> {
     display: DisplayDriver,
+    buffer: BufferedDisplay,
     neopixels: NeoPixels<T>,
+}
+impl<T> PyGamerOutput<T> {
+    pub fn new(display: DisplayDriver, neopixels: NeoPixels<T>) -> Self {
+        Self {
+            display,
+            buffer: BufferedDisplay::default(),
+            neopixels,
+        }
+    }
 }
 impl<T: CountDown + Periodic> GameIndicator for PyGamerOutput<T> {
     fn indicate_active_piece(&mut self, piece: Piece) {
-        let colors = [piece.neopixel_color(), RGB::new(0, 0, 0)];
+        let colors = [piece.neopixel_color(), RGB::default()];
 
         self.neopixels
             .write(colors.into_iter().cycle().take(5))
@@ -58,36 +70,45 @@ impl<T: CountDown + Periodic> GameIndicator for PyGamerOutput<T> {
     }
 
     fn indicate_win_rating(&mut self, rating: LevelRating) {
-        // TODO: Implement!
+        self.neopixels
+            .write(
+                repeat_n(STAR_COLOR, rating.num_stars() as usize)
+                    .chain(repeat(RGB::default()))
+                    .take(5),
+            )
+            .unwrap();
     }
 
     fn indicate_nothing(&mut self) {
-        // TODO: Implement!
+        // NOTE: Due to the janky timing on the neopixels, using RGB::default() here does not produce black!
+        self.neopixels
+            .write(repeat_n(RGB::new(0, 0, 0), 5))
+            .unwrap();
     }
 }
 impl<T> OriginDimensions for PyGamerOutput<T> {
     #[inline]
     fn size(&self) -> Size {
-        self.display.size()
+        self.buffer.size()
     }
 }
 impl<T> DrawTarget for PyGamerOutput<T> {
     type Color = Rgb565;
 
-    type Error = <DisplayDriver as DrawTarget>::Error;
+    type Error = <BufferedDisplay as DrawTarget>::Error;
 
     fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
     where
         I: IntoIterator<Item = Pixel<Self::Color>>,
     {
-        self.display.draw_iter(pixels)
+        self.buffer.draw_iter(pixels)
     }
 }
 impl<T> GameDisplay for PyGamerOutput<T> {
     fn flush(&mut self) {
-        // Display writes are immediate so do nothing here
+        self.buffer.draw(&mut self.display).unwrap()
     }
 }
 impl<T: CountDown + Periodic> GameOutput for PyGamerOutput<T> {
-    const SLIDE_SPEED: i32 = 2;
+    const SLIDE_SPEED: i32 = 14;
 }

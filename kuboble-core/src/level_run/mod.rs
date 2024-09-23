@@ -211,12 +211,12 @@ impl LevelRunState<'_> {
 
     #[inline]
     pub fn piece_position(&self, piece: Piece) -> Vector<u8> {
-        *self.positions.get(piece)
+        self.positions[piece]
     }
 
     #[inline]
     pub fn teleport_piece(&mut self, piece: Piece, new_position: Vector<u8>) {
-        *self.positions.get_mut(piece) = new_position;
+        self.positions[piece] = new_position;
     }
 
     pub fn attempt_move(&mut self, muv: Move) -> Option<PieceSlid> {
@@ -243,7 +243,7 @@ impl LevelRunState<'_> {
         }
 
         if distance > 0 {
-            *self.positions.get_mut(muv.piece) = position;
+            self.positions[muv.piece] = position;
             Some(PieceSlid {
                 muv,
                 strip_top_left: starting_position.min(position),

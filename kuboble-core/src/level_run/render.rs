@@ -1,15 +1,16 @@
 use super::{LevelRun, LevelRunChange, PieceSlid, PiecesChanged};
-use crate::{level_select::LevelStatus, Piece, Space, Vector};
+use crate::{level_select::LevelStatus, BufferedRenderer, Piece, Space, Vector};
 
 #[cfg(feature = "std")]
 use super::VecExt;
 
-pub trait LevelRunRenderer {
+pub trait LevelRunRenderer: BufferedRenderer {
     fn draw_space(&mut self, position: Vector<u8>, space: Space);
     fn draw_piece(&mut self, position: Vector<u8>, piece: Piece, is_active: bool);
     fn slide_piece(&mut self, piece_slid: &PieceSlid, is_active: bool);
     fn update_num_moves(&mut self, num_moves: u8, at_maximum: bool);
     fn update_constants(&mut self, level_num: u16, goal: u8);
+    fn update_active_piece(&mut self, piece: Piece);
     fn notify_win(&mut self, level_status: LevelStatus);
 }
 
@@ -35,11 +36,14 @@ impl LevelRun<'_> {
         // Update metrics
         renderer.update_num_moves(self.num_moves(), self.move_stack.is_full());
         renderer.update_constants(self.level_num, level.optimal_moves);
+        renderer.update_active_piece(self.active_piece);
 
         // Display alert if applicable
         if let Some(status) = self.winning_status() {
             renderer.notify_win(status);
         }
+
+        renderer.flush();
     }
 }
 
@@ -53,7 +57,10 @@ impl PiecesChanged<'_> {
             } => {
                 if let Some(oap) = old_active_piece {
                     renderer.draw_piece(oap.position, oap.piece, false);
+                    renderer.update_active_piece(piece_slid.muv.piece);
                 }
+
+                // We do not flush here as it is assumed that this will be done for each frame of the slide
                 renderer.slide_piece(piece_slid, *is_active);
             }
             PiecesChanged::Moved(moved) => {
@@ -64,6 +71,9 @@ impl PiecesChanged<'_> {
                 // Now draw pieces at the new locations
                 for moved in moved.iter() {
                     renderer.draw_piece(moved.to, moved.piece, moved.is_active);
+                    if moved.is_active {
+                        renderer.update_active_piece(moved.piece);
+                    }
                 }
             }
             PiecesChanged::ActivePiece {
@@ -71,8 +81,10 @@ impl PiecesChanged<'_> {
                 positions,
             } => {
                 for piece in positions.pieces() {
-                    renderer.draw_piece(*positions.get(piece), piece, piece == *active_piece);
+                    renderer.draw_piece(positions[piece], piece, piece == *active_piece);
                 }
+
+                renderer.update_active_piece(*active_piece);
             }
         }
     }
@@ -91,5 +103,7 @@ impl LevelRunChange<'_> {
         if let Some(status) = self.winning_status.clone() {
             renderer.notify_win(status);
         }
+
+        renderer.flush();
     }
 }

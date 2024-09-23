@@ -3,8 +3,11 @@
 #![feature(let_chains)]
 #![feature(generic_const_exprs)]
 
-use arrayvec::ArrayVec;
-use core::{cmp, mem::variant_count};
+use core::{
+    cmp,
+    ops::{Index, IndexMut},
+};
+use enum_map::{Enum, EnumMap};
 use itertools::iproduct;
 use serde::{Deserialize, Serialize};
 use strum::{EnumIter, IntoEnumIterator};
@@ -14,7 +17,7 @@ pub mod level_select;
 pub mod levels;
 
 // NOTE: We cannot use a library like `nalgebra` because we need a const constructor.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct Vector<T> {
     pub x: T,
     pub y: T,
@@ -59,7 +62,7 @@ impl<T: Ord> Ord for Vector<T> {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, EnumIter)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, EnumIter, Enum)]
 #[repr(u8)]
 pub enum Piece {
     #[default]
@@ -105,26 +108,36 @@ impl core::fmt::Display for Piece {
 }
 
 #[derive(Debug, Clone)]
-pub struct PieceMap<T>(ArrayVec<T, { variant_count::<Piece>() }>);
+pub struct PieceMap<T> {
+    num_pieces: usize,
+    map: EnumMap<Piece, T>,
+}
 impl<T> PieceMap<T> {
     pub fn pieces(&self) -> impl Iterator<Item = Piece> {
-        Piece::iter().take(self.0.len())
-    }
-
-    pub fn get(&self, piece: Piece) -> &T {
-        &self.0[piece as usize]
-    }
-
-    pub fn get_mut(&mut self, piece: Piece) -> &mut T {
-        &mut self.0[piece as usize]
+        Piece::iter().take(self.num_pieces)
     }
 }
-impl<T: Copy> From<&[T]> for PieceMap<T> {
-    fn from(value: &[T]) -> Self {
-        let mut array_vec = ArrayVec::new();
-        array_vec.try_extend_from_slice(value).unwrap();
+impl<T> Index<Piece> for PieceMap<T> {
+    type Output = T;
 
-        Self(array_vec)
+    fn index(&self, index: Piece) -> &Self::Output {
+        self.map.index(index)
+    }
+}
+impl<T> IndexMut<Piece> for PieceMap<T> {
+    fn index_mut(&mut self, index: Piece) -> &mut Self::Output {
+        self.map.index_mut(index)
+    }
+}
+impl<T: Clone + Default> From<&[T]> for PieceMap<T> {
+    fn from(value: &[T]) -> Self {
+        Self {
+            num_pieces: value.len(),
+            map: Piece::iter()
+                .zip(value.iter())
+                .map(|(k, v)| (k, v.clone()))
+                .collect(),
+        }
     }
 }
 
@@ -233,6 +246,10 @@ impl Default for LevelRating {
     fn default() -> Self {
         Self(0)
     }
+}
+
+pub trait BufferedRenderer {
+    fn flush(&mut self);
 }
 
 #[cfg(test)]

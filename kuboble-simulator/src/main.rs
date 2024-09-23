@@ -3,10 +3,10 @@ use embedded_graphics::{pixelcolor::Rgb565, prelude::*};
 use embedded_graphics_simulator::{
     sdl2::Keycode, BinaryColorTheme, OutputSettings, SimulatorDisplay, SimulatorEvent, Window,
 };
-use kuboble_core::{level_run::Direction, level_select::LevelProgress, Piece};
+use kuboble_core::{level_run::Direction, level_select::LevelProgress, LevelRating, Piece};
 use pygamer_engine::{
-    run_game, ControlAction, Controller, GameDisplay, GameIndicator, GameOutput, GameResult,
-    DISPLAY_SIZE,
+    run_game, BufferedDisplay, ControlAction, Controller, GameDisplay, GameIndicator, GameOutput,
+    GameResult, DISPLAY_SIZE,
 };
 use std::{cell::RefCell, fs::File, u32};
 
@@ -50,10 +50,11 @@ struct SimulatorOutput<'a> {
 }
 impl<'a> SimulatorOutput<'a> {
     pub fn new(window: &'a RefCell<Window>) -> Self {
-        Self {
+        let simulator_output = Self {
             display: SimulatorDisplay::<Rgb565>::new(DISPLAY_SIZE),
             window,
-        }
+        };
+        simulator_output
     }
 }
 impl OriginDimensions for SimulatorOutput<'_> {
@@ -64,7 +65,7 @@ impl OriginDimensions for SimulatorOutput<'_> {
 impl DrawTarget for SimulatorOutput<'_> {
     type Color = Rgb565;
 
-    type Error = <SimulatorDisplay<Rgb565> as DrawTarget>::Error;
+    type Error = <BufferedDisplay as DrawTarget>::Error;
 
     fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
     where
@@ -79,16 +80,20 @@ impl GameDisplay for SimulatorOutput<'_> {
     }
 }
 impl GameIndicator for SimulatorOutput<'_> {
-    fn indicate_active_piece(&mut self, _piece: Piece) {
-        // Do nothing because there are no indicators
+    fn indicate_active_piece(&mut self, piece: Piece) {
+        println!("Indicate active piece: {piece:?}");
     }
 
-    fn indicate_win_rating(&mut self, _rating: kuboble_core::LevelRating) {
-        // Do nothing because there are no indicators
+    fn indicate_win_rating(&mut self, rating: LevelRating) {
+        println!(
+            "Indicate rating: {}/{}",
+            rating.num_stars(),
+            LevelRating::maximum_possible().num_stars()
+        );
     }
 
     fn indicate_nothing(&mut self) {
-        // Do nothing because there are no indicators
+        println!("Indicator cleared")
     }
 }
 impl GameOutput for SimulatorOutput<'_> {

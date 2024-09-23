@@ -11,6 +11,7 @@ use embedded_graphics::{
 };
 use embedded_graphics_framebuf::FrameBuf;
 use embedded_sprites::sprite::Sprite;
+use kuboble_core::BufferedRenderer;
 use kuboble_core::{
     level_run::{render::LevelRunRenderer, Action, LevelRun, PieceSlid},
     level_select::{LevelInfo, LevelStatus},
@@ -88,18 +89,19 @@ where
         Sprite::new(point, &piece.image(is_active))
             .draw(self.output)
             .unwrap();
-
+    }
+}
+impl<G: GameOutput> BufferedRenderer for LevelRenderer<'_, G> {
+    fn flush(&mut self) {
         self.output.flush();
     }
 }
-impl<'a, G: GameOutput> LevelRunRenderer for LevelRenderer<'_, G>
+impl<G: GameOutput> LevelRunRenderer for LevelRenderer<'_, G>
 where
     G::Error: core::fmt::Debug,
 {
     fn draw_space(&mut self, position: Vector<u8>, space: Space) {
         Self::draw_space_absolute(self.output, self.absolute_position(position), space);
-
-        self.output.flush();
     }
 
     fn draw_piece(&mut self, position: Vector<u8>, piece: Piece, is_active: bool) {
@@ -216,8 +218,6 @@ where
         )
         .draw(self.output)
         .unwrap();
-
-        self.output.flush();
     }
 
     fn update_constants(&mut self, level_num: u16, goal: u8) {
@@ -254,8 +254,10 @@ where
         )
         .draw(self.output)
         .unwrap();
+    }
 
-        self.output.flush();
+    fn update_active_piece(&mut self, piece: Piece) {
+        self.output.indicate_active_piece(piece);
     }
 
     fn notify_win(&mut self, level_status: LevelStatus) {
@@ -266,6 +268,8 @@ where
             level_status.rating().num_stars()
         )
         .unwrap();
+
+        self.output.indicate_win_rating(level_status.rating());
 
         // TODO: This needs finalized with location and stars.
         Text::with_text_style(
@@ -279,8 +283,6 @@ where
         )
         .draw(self.output)
         .unwrap();
-
-        self.output.flush();
     }
 }
 

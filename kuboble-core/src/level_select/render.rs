@@ -1,10 +1,13 @@
+use crate::{BufferedRenderer, LevelRating};
+
 use super::{Filter, LevelSelector, LevelSelectorChange, LevelSlotInfo};
 use strum::IntoEnumIterator;
 
-pub trait LevelSelectRenderer {
+pub trait LevelSelectRenderer: BufferedRenderer {
     fn draw_level_slot(&mut self, level_slot_info: &LevelSlotInfo);
     fn update_filter(&mut self, filter: Filter, is_active: bool);
     fn update_num_locked(&mut self, num_locked: u16);
+    fn update_active_rating(&mut self, rating: Option<LevelRating>);
 }
 
 impl<const W: usize> LevelSelector<'_, W> {
@@ -21,6 +24,11 @@ impl<const W: usize> LevelSelector<'_, W> {
 
         // Draw locked levels
         renderer.update_num_locked(self.level_progress.num_locked_levels() as u16);
+
+        // Draw level rating
+        renderer.update_active_rating(self.active_rating());
+
+        renderer.flush();
     }
 }
 
@@ -41,5 +49,10 @@ impl<const W: usize> LevelSelectorChange<W> {
         if let Some(n) = self.num_locked_change {
             renderer.update_num_locked(n);
         }
+
+        // Render active rating if changed
+        renderer.update_active_rating(self.active_rating);
+
+        renderer.flush();
     }
 }

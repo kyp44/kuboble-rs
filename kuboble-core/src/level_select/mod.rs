@@ -305,6 +305,7 @@ pub struct LevelSelectorChange<const W: usize> {
     slots_change: ArrayVec<LevelSlotInfo, W>,
     filter_change: Option<FilterChange>,
     num_locked_change: Option<u16>,
+    active_rating: Option<LevelRating>,
 }
 
 pub struct LevelSelector<'a, const W: usize> {
@@ -345,6 +346,10 @@ impl<'a, const W: usize> LevelSelector<'a, W> {
     pub fn active_level_info(&self) -> Option<LevelInfo> {
         self.active_level_idx()
             .map(|level_idx| self.level_progress.level_info(level_idx))
+    }
+
+    pub fn active_rating(&self) -> Option<LevelRating> {
+        self.active_level_info().map(|l| l.rating)
     }
 
     fn window_slots(&self) -> ArrayVec<LevelSlotInfo, W> {
@@ -424,6 +429,7 @@ impl<'a, const W: usize> LevelSelector<'a, W> {
                     slots_change,
                     filter_change: None,
                     num_locked_change: None,
+                    active_rating: self.active_rating(),
                 });
             } else {
                 // Need to shift the window
@@ -440,6 +446,7 @@ impl<'a, const W: usize> LevelSelector<'a, W> {
                         slots_change: self.window_slots(),
                         filter_change: None,
                         num_locked_change: None,
+                        active_rating: self.active_rating(),
                     });
                 }
             }
@@ -468,6 +475,7 @@ impl<'a, const W: usize> LevelSelector<'a, W> {
                         active: self.active_filter,
                     }),
                     num_locked_change: None,
+                    active_rating: self.active_rating(),
                 })
             }
             Action::ActiveLevelCompleted(new_status) => {
@@ -497,6 +505,7 @@ impl<'a, const W: usize> LevelSelector<'a, W> {
                                 num_locked_change: Some(
                                     self.level_progress.num_locked_levels() as u16
                                 ),
+                                active_rating: self.active_rating(),
                             }
                         })
                 })

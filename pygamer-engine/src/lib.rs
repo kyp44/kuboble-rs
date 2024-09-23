@@ -2,13 +2,17 @@
 #![feature(try_trait_v2)]
 #![feature(never_type)]
 
-use core::ops::{ControlFlow, FromResidual};
+use core::{
+    convert::Infallible,
+    ops::{ControlFlow, FromResidual},
+};
 
 use assets::stars::STAR_SIZE;
 use derive_new::new;
 use embedded_graphics::{
     mono_font::MonoFont, pixelcolor::Rgb565, prelude::*, primitives::Rectangle,
 };
+use embedded_graphics_framebuf::FrameBuf;
 use embedded_sprites::{image::Image, sprite::Sprite};
 use kuboble_core::{
     level_run::Direction,
@@ -106,7 +110,7 @@ impl PieceExt for Piece {
     fn display_color(&self) -> Rgb565 {
         match self {
             Piece::Green => Rgb565::CSS_FOREST_GREEN,
-            Piece::Orange => Rgb565::CSS_ORANGE,
+            Piece::Orange => Rgb565::new(29, 23, 5),
             Piece::Blue => Rgb565::BLUE,
         }
     }
@@ -291,6 +295,53 @@ pub trait GameOutput: GameDisplay + GameIndicator {
         .draw(self)
         .unwrap();
         self.flush();
+    }
+}
+
+pub struct BufferedDisplay {
+    frame_buffer: [Rgb565; DISPLAY_SIZE.width as usize * DISPLAY_SIZE.height as usize],
+}
+impl Drawable for BufferedDisplay {
+    type Color = Rgb565;
+    type Output = ();
+
+    fn draw<D>(&self, target: &mut D) -> Result<Self::Output, D::Error>
+    where
+        D: DrawTarget<Color = Self::Color>,
+    {
+        target.fill_contiguous(
+            &Rectangle::new(Point::zero(), DISPLAY_SIZE),
+            self.frame_buffer.iter().copied(),
+        )
+    }
+}
+impl Default for BufferedDisplay {
+    fn default() -> Self {
+        Self {
+            frame_buffer: [Rgb565::default();
+                DISPLAY_SIZE.width as usize * DISPLAY_SIZE.height as usize],
+        }
+    }
+}
+impl OriginDimensions for BufferedDisplay {
+    fn size(&self) -> Size {
+        DISPLAY_SIZE
+    }
+}
+impl DrawTarget for BufferedDisplay {
+    type Color = Rgb565;
+    type Error = Infallible;
+
+    fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
+    where
+        I: IntoIterator<Item = Pixel<Self::Color>>,
+    {
+        FrameBuf::new(
+            &mut self.frame_buffer,
+            DISPLAY_SIZE.width as usize,
+            DISPLAY_SIZE.height as usize,
+        )
+        .draw_iter(pixels)
     }
 }
 
