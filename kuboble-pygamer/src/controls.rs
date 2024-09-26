@@ -58,7 +58,7 @@ impl<'a> PyGamerController<'a> {
 impl Controller for PyGamerController<'_> {
     fn wait_for_action(&mut self) -> GameResult<ControlAction> {
         loop {
-            self.delay.borrow_mut().delay_ms(50u8);
+            self.delay.borrow_mut().delay_ms(5u8);
 
             // Need to debounce the joystick
             let old_direction = self.last_direction;

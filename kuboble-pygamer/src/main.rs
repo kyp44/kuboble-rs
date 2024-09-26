@@ -33,6 +33,7 @@ fn main() -> ! {
     );
     let pins = Pins::new(peripherals.port).split();
     // TODO: use sleeping delay here for battery life? Evidently worth it even for delays of like 50ms
+    //let x = SleepingDelay::new();
     let mut delay = Delay::new(core.SYST, &mut clocks);
 
     // Initialize the display

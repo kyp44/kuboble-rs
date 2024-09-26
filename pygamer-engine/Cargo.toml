@@ -10,4 +10,4 @@ embedded-graphics = "0.7"
 embedded-graphics-framebuf = "0.2"
 embedded-sprites = "0.1.2"
 kuboble-core = {path = "../kuboble-core"}
-strum = {version = "0.26.3", default-features = false}
+#strum = {version = "0.26.3", default-features = false}

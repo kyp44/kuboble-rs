@@ -16,6 +16,9 @@ smart-leds = "0.3.0"
 st7735-lcd = "0.8.1"
 ws2812-timer-delay = "0.3.0"
 
+[features]
+unlocked = ["kuboble-core/unlocked"]
+
 [profile.dev]
 debug = true 
 incremental = false 

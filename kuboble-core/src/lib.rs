@@ -254,8 +254,6 @@ pub trait BufferedRenderer {
 
 #[cfg(test)]
 mod tests {
-    use core::u8;
-
     use super::*;
 
     #[test]
