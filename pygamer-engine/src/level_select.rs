@@ -302,10 +302,8 @@ where
             ControlAction::Move(dir) => match dir {
                 ControlDirection::Up => Action::ChangeActiveLevel(Direction::Previous),
                 ControlDirection::Down => Action::ChangeActiveLevel(Direction::Next),
-                // TODO left and right to page up/down
-                //ControlDirection::Left => Action::ChangeActiveFilter(Direction::Previous),
-                //ControlDirection::Right => Action::ChangeActiveFilter(Direction::Next),
-                _ => continue,
+                ControlDirection::Left => Action::ChangePage(Direction::Previous),
+                ControlDirection::Right => Action::ChangePage(Direction::Next),
             },
             ControlAction::Select => Action::ChangeActiveFilter(Direction::Next),
             ControlAction::A | ControlAction::Start => match level_selector.active_level_info() {

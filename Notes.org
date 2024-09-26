@@ -1,10 +1,8 @@
 Possible enhancements:
 + Hold direction to keep changing levels on select screen.
 Things to do:
-+ Compile feature to unlock all levels
-+ Level select screen
-  * Left/right to page up and down
 + Save progress to flash on PG
++ Smooth piece sliding animation
 + Winning notification
   * Spiral or scan blackout of level tiles
   * Leave pieces?
@@ -12,3 +10,4 @@ Things to do:
   * Show twinkling stars on NeoPixels
 + JSON save on PG
 + Title screen with import/export progress
++ Investigate sound

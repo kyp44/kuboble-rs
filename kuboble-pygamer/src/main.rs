@@ -11,6 +11,7 @@ use pygamer::adc::Adc;
 use pygamer::clock::GenericClockController;
 use pygamer::delay::Delay;
 use pygamer::pac::gclk::pchctrl::GEN_A;
+use pygamer::sleeping_delay::SleepingDelay;
 use pygamer::timer::SpinTimer;
 use pygamer::{entry, pac, Pins};
 use pygamer_engine::run_game;
@@ -32,6 +33,7 @@ fn main() -> ! {
     );
     let mut pins = Pins::new(peripherals.PORT).split();
     // TODO: use sleeping delay here for battery life? Evidently worth it even for delays of like 50ms
+    //let x = SleepingDelay::new();
     let mut delay = Delay::new(core.SYST, &mut clocks);
 
     // Initialize the display
