@@ -24,44 +24,52 @@ systick_monotonic!(Mono, 1000);
 
 #[rtic::app(device = pygamer::pac, dispatchers = [TC0])]
 mod app {
-    use crate::{output, Mono};
+    use pygamer::{delay::Delay, timer::SpinTimer, Pins};
+    use rtic_monotonics::Monotonic;
+
+    use crate::{
+        output::{self, neopixels_test, DisplayDriver, NeoPixels},
+        Mono,
+    };
 
     #[shared]
     struct Shared {}
 
     #[local]
-    struct Local {}
+    struct Local {
+        neopixels: NeoPixels<SpinTimer>,
+        np_color: bool,
+        display: DisplayDriver,
+    }
 
     #[init]
-    fn init(cx: init::Context) -> (Shared, Local) {
+    fn init(mut cx: init::Context) -> (Shared, Local) {
         // Get the peripherals and pins and setup clocks
         let mut clocks = pygamer::clock::GenericClockController::with_internal_32kosc(
-            peripherals.GCLK,
-            &mut peripherals.MCLK,
-            &mut peripherals.OSC32KCTRL,
-            &mut peripherals.OSCCTRL,
-            &mut peripherals.NVMCTRL,
+            cx.device.GCLK,
+            &mut cx.device.MCLK,
+            &mut cx.device.OSC32KCTRL,
+            &mut cx.device.OSCCTRL,
+            &mut cx.device.NVMCTRL,
         );
-        let mut pins = Pins::new(peripherals.PORT).split();
-        // TODO: use sleeping delay here for battery life? Evidently worth it even for delays of like 50ms
-        //let x = SleepingDelay::new();
-        let mut delay = Delay::new(core.SYST, &mut clocks);
+        let mut pins = Pins::new(cx.device.PORT).split();
+        let mut delay = Delay::new(cx.core.SYST, &mut clocks);
 
         // Initialize the display
         let (display, _backlight) = pins
             .display
             .init(
                 &mut clocks,
-                peripherals.SERCOM4,
-                &mut peripherals.MCLK,
-                peripherals.TC2,
+                cx.device.SERCOM4,
+                &mut cx.device.MCLK,
+                cx.device.TC2,
                 &mut delay,
                 &mut pins.port,
             )
             .unwrap();
 
-        // Need to share the delay
-        let delay = RefCell::new(delay);
+        // Start the monotonic
+        Mono::start(delay.free(), 120_000_000);
 
         // Set up the neo-pixels driver
         // Note: This is the non-deprecated way but is jittery as commented in the example
@@ -73,38 +81,36 @@ mod app {
         let neopixels_timer = SpinTimer::new(4);
         let neopixels = pins.neopixel.init(neopixels_timer, &mut pins.port);
 
-        neopixels_test::spawn(0).unwrap();
-        display_test::spawn().unwrap();
+        display_test::spawn().unwrap_or_else(|_| panic!());
 
-        Mono::start(cx.core.SYST, 12_000_000);
-
-        (Shared {}, Local {})
+        (
+            Shared {},
+            Local {
+                neopixels,
+                display,
+                np_color: false,
+            },
+        )
     }
 
-    #[task(priority = 1)]
-    async fn neopixels_test(
-        _: neopixels_test::Context,
-        mut neopixels: crate::output::NeoPixels<pygamer::timer::SpinTimer>,
-    ) {
-        output::neopixels_test(neopixels).await
+    #[task(priority = 1, local = [display])]
+    async fn display_test(cx: display_test::Context) {
+        output::display_test(cx.local.display).await
     }
 
-    #[task(priority = 1)]
-    async fn display_test(_: display_test::Context, mut display: output::DisplayDriver) {
-        output::display_test(display).await
-    }
-
-    // TODO: Do a test about idle if there are suspended higher priority software tasks
-    #[idle]
+    #[idle(local = [np_color, neopixels])]
     fn idle(cx: idle::Context) -> ! {
         // error: no `local_to_foo` field in `idle::LocalResources`
         // _cx.local.local_to_foo += 1;
 
         // error: no `local_to_bar` field in `idle::LocalResources`
         // _cx.local.local_to_bar += 1;
+        let color = *cx.local.np_color;
 
+        neopixels_test(cx.local.neopixels, color);
         loop {
-            cortex_m::asm::nop();
+            *cx.local.np_color = !color;
+            rtic::export::wfi();
         }
     }
 }
@@ -122,7 +128,7 @@ fn main() -> ! {
         &mut peripherals.NVMCTRL,
     );
     let mut pins = Pins::new(peripherals.PORT).split();
-    // TODO: use sleeping delay here for battery life? Evidently worth it even for delays of like 50ms
+
     //let x = SleepingDelay::new();
     let mut delay = Delay::new(core.SYST, &mut clocks);
 
