@@ -4,6 +4,7 @@ name = "kuboble-pygamer"
 version = "0.1.0"
 
 [patch.crates-io]
+atsamd-hal = {path = "../../atsamd/hal"}
 pygamer = {path = "../../atsamd/boards/pygamer"}
 
 [dependencies]

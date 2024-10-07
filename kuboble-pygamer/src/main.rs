@@ -34,13 +34,13 @@ mod app {
     fn init(mut cx: init::Context) -> (Shared, Local) {
         // Get the peripherals and pins and setup clocks
         let mut clocks = GenericClockController::with_internal_32kosc(
-            cx.device.GCLK,
-            &mut cx.device.MCLK,
-            &mut cx.device.OSC32KCTRL,
-            &mut cx.device.OSCCTRL,
-            &mut cx.device.NVMCTRL,
+            cx.device.gclk,
+            &mut cx.device.mclk,
+            &mut cx.device.osc32kctrl,
+            &mut cx.device.oscctrl,
+            &mut cx.device.nvmctrl,
         );
-        let mut pins = Pins::new(cx.device.PORT).split();
+        let pins = Pins::new(cx.device.port).split();
         let mut delay = Delay::new(cx.core.SYST, &mut clocks);
 
         // Initialize the display
@@ -48,9 +48,9 @@ mod app {
             .display
             .init(
                 &mut clocks,
-                cx.device.SERCOM4,
-                &mut cx.device.MCLK,
-                cx.device.TC2,
+                cx.device.sercom4,
+                &mut cx.device.mclk,
+                cx.device.tc2,
                 &mut delay,
             )
             .unwrap();
