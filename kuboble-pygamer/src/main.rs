@@ -2,19 +2,6 @@
 #![no_main]
 #![feature(let_chains)]
 
-use controls::PyGamerController;
-use core::cell::RefCell;
-use kuboble_core::level_select::LevelProgress;
-use output::PyGamerOutput;
-use pac::{CorePeripherals, Peripherals};
-use pygamer::adc::Adc;
-use pygamer::clock::GenericClockController;
-use pygamer::delay::Delay;
-use pygamer::pac::gclk::pchctrl::GEN_A;
-use pygamer::sleeping_delay::SleepingDelay;
-use pygamer::timer::SpinTimer;
-use pygamer::{entry, pac, Pins};
-use pygamer_engine::run_game;
 use rtic_monotonics::systick::prelude::*;
 
 mod controls;
@@ -24,11 +11,21 @@ systick_monotonic!(Mono, 1000);
 
 #[rtic::app(device = pygamer::pac, dispatchers = [TC0])]
 mod app {
-    use pygamer::{delay::Delay, timer::SpinTimer, Pins};
-    use rtic_monotonics::Monotonic;
+    use pygamer::{
+        delay::Delay,
+        gpio::{
+            v2::{Output, PushPull, PA23},
+            Pin,
+        },
+        prelude::*,
+        timer::SpinTimer,
+        Pins,
+    };
+
+    type RedLed = Pin<PA23, Output<PushPull>>;
 
     use crate::{
-        output::{self, neopixels_test, DisplayDriver, NeoPixels},
+        output::{self, DisplayDriver},
         Mono,
     };
 
@@ -37,9 +34,8 @@ mod app {
 
     #[local]
     struct Local {
-        neopixels: NeoPixels<SpinTimer>,
-        np_color: bool,
         display: DisplayDriver,
+        red_led: RedLed,
     }
 
     #[init]
@@ -71,26 +67,22 @@ mod app {
         // Start the monotonic
         Mono::start(delay.free(), 120_000_000);
 
+        // Set up the red LED
+        let red_led = pins.led_pin.into_open_drain_output(&mut pins.port);
+
         // Set up the neo-pixels driver
         // Note: This is the non-deprecated way but is jittery as commented in the example
         // here: https://github.com/atsamd-rs/atsamd/blob/master/boards/pygamer/examples/neopixel_rainbow_spi.rs
         // Maybe look back into this later so we don't have to use the deprecated SpinTimer.
         /* let tc4_clock = clocks.tc4_tc5(&clocks.gclk0()).unwrap();
         let mut neopixels_timer = TimerCounter::tc4_(&tc4_clock, peripherals.TC4, &mut peripherals.MCLK);
-        neopixels_timer.start(3.mhz()); */
+        neopixels_timer.start(3.mhz());
         let neopixels_timer = SpinTimer::new(4);
-        let neopixels = pins.neopixel.init(neopixels_timer, &mut pins.port);
+        let neopixels = pins.neopixel.init(neopixels_timer, &mut pins.port);*/
 
         display_test::spawn().unwrap_or_else(|_| panic!());
 
-        (
-            Shared {},
-            Local {
-                neopixels,
-                display,
-                np_color: false,
-            },
-        )
+        (Shared {}, Local { display, red_led })
     }
 
     #[task(priority = 1, local = [display])]
@@ -98,18 +90,23 @@ mod app {
         output::display_test(cx.local.display).await
     }
 
-    #[idle(local = [np_color, neopixels])]
+    #[idle(local = [red_led])]
     fn idle(cx: idle::Context) -> ! {
-        // error: no `local_to_foo` field in `idle::LocalResources`
-        // _cx.local.local_to_foo += 1;
+        let mut count = 0u32;
+        let mut led_on = false;
 
-        // error: no `local_to_bar` field in `idle::LocalResources`
-        // _cx.local.local_to_bar += 1;
-        let color = *cx.local.np_color;
-
-        neopixels_test(cx.local.neopixels, color);
         loop {
-            *cx.local.np_color = !color;
+            count += 1;
+            if count > 500 {
+                count = 0;
+                led_on = !led_on;
+
+                if led_on {
+                    cx.local.red_led.set_high().unwrap();
+                } else {
+                    cx.local.red_led.set_low().unwrap();
+                }
+            }
             rtic::export::wfi();
         }
     }

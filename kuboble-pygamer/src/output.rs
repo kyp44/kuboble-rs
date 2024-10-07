@@ -51,18 +51,6 @@ impl PieceExt for Piece {
 
 const STAR_COLOR: RGB<u8> = RGB::new(4, 4, 0);
 
-pub fn neopixels_test(neopixels: &mut NeoPixels<pygamer::timer::SpinTimer>, color: bool) {
-    loop {
-        let colors = if color {
-            [Piece::Green.neopixel_color(), RGB::default()]
-        } else {
-            [Piece::Orange.neopixel_color(), RGB::default()]
-        };
-
-        neopixels.write(colors.into_iter().cycle().take(5)).unwrap();
-    }
-}
-
 pub async fn display_test(display: &mut DisplayDriver) -> ! {
     display.clear(Rgb565::WHITE).unwrap();
     loop {
@@ -70,13 +58,13 @@ pub async fn display_test(display: &mut DisplayDriver) -> ! {
             .into_styled(PrimitiveStyle::with_fill(Rgb565::CSS_DARK_BLUE))
             .draw(display)
             .unwrap();
-        Mono::delay(2000.millis()).await;
+        Mono::delay(1.secs()).await;
 
         embedded_graphics::primitives::Rectangle::new(Point::zero(), Size::new(100, 100))
             .into_styled(PrimitiveStyle::with_fill(Rgb565::CSS_DARK_RED))
             .draw(display)
             .unwrap();
-        Mono::delay(2000.millis()).await;
+        Mono::delay(1.secs()).await;
     }
 }
 
