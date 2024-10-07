@@ -1,14 +1,15 @@
 use core::iter::{repeat, repeat_n};
 
-use crate::Mono;
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
 use embedded_graphics::primitives::PrimitiveStyle;
 use kuboble_core::{LevelRating, Piece};
-use pygamer::{hal::prelude::*, TftDc, TftReset, TftSpi};
+use pygamer::{
+    hal::{async_hal::timer::TimerFuture, prelude::*},
+    pac::Tc4,
+    TftDc, TftReset, TftSpi,
+};
 use pygamer_engine::{BufferedDisplay, GameDisplay, GameIndicator, GameOutput};
-use rtic_monotonics::systick::prelude::*;
-use rtic_monotonics::Monotonic;
 use smart_leds::{SmartLedsWrite, RGB};
 use ws2812_timer_delay::Ws2812;
 
@@ -31,20 +32,20 @@ impl PieceExt for Piece {
 
 const STAR_COLOR: RGB<u8> = RGB::new(4, 4, 0);
 
-pub async fn display_test(display: &mut DisplayDriver) -> ! {
+pub async fn display_test(delay: &mut TimerFuture<Tc4>, display: &mut DisplayDriver) -> ! {
     display.clear(Rgb565::WHITE).unwrap();
     loop {
         embedded_graphics::primitives::Rectangle::new(Point::zero(), Size::new(100, 100))
             .into_styled(PrimitiveStyle::with_fill(Rgb565::CSS_DARK_BLUE))
             .draw(display)
             .unwrap();
-        Mono::delay(1.secs()).await;
+        delay.delay(4.secs()).await;
 
         embedded_graphics::primitives::Rectangle::new(Point::zero(), Size::new(100, 100))
             .into_styled(PrimitiveStyle::with_fill(Rgb565::CSS_DARK_RED))
             .draw(display)
             .unwrap();
-        Mono::delay(1.secs()).await;
+        delay.delay(1.secs()).await;
     }
 }
 /*

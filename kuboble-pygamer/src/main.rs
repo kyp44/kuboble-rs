@@ -2,23 +2,20 @@
 #![no_main]
 #![feature(let_chains)]
 
-use rtic_monotonics::systick::prelude::*;
-
 mod controls;
 mod output;
 
-systick_monotonic!(Mono, 1000);
-
-#[rtic::app(device = pygamer::pac, dispatchers = [TC0])]
+#[rtic::app(device = pygamer::pac, dispatchers = [EVSYS_0])]
 mod app {
-    use pygamer::{
-        hal::{clock::GenericClockController, delay::Delay, prelude::*},
-        Pins, RedLed,
+    use crate::output::{self, DisplayDriver};
+    use atsamd_hal::{
+        async_hal::timer::{InterruptHandler, TimerFuture},
+        bind_interrupts,
     };
-
-    use crate::{
-        output::{self, DisplayDriver},
-        Mono,
+    use pygamer::{
+        hal::{clock::GenericClockController, delay::Delay, prelude::*, timer::TimerCounter},
+        pac::Tc4,
+        Pins, RedLed,
     };
 
     #[shared]
@@ -26,6 +23,7 @@ mod app {
 
     #[local]
     struct Local {
+        delay: TimerFuture<Tc4>,
         display: DisplayDriver,
         red_led: RedLed,
     }
@@ -55,9 +53,6 @@ mod app {
             )
             .unwrap();
 
-        // Start the monotonic
-        Mono::start(delay.free(), 120_000_000);
-
         // Set up the red LED
         let red_led = pins.led_pin.into();
 
@@ -71,14 +66,34 @@ mod app {
         let neopixels_timer = SpinTimer::new(4);
         let neopixels = pins.neopixel.init(neopixels_timer, &mut pins.port);*/
 
-        display_test::spawn().unwrap_or_else(|_| panic!());
+        // Bind interrupt to the timer handler
+        bind_interrupts!(struct Irq {
+            TC4 => InterruptHandler<pygamer::pac::Tc4>;
+        });
 
-        (Shared {}, Local { display, red_led })
+        let gclk0 = clocks.gclk0();
+        let delay = TimerCounter::tc4_(
+            &clocks.tc4_tc5(&gclk0).unwrap(),
+            cx.device.tc4,
+            &mut cx.device.mclk,
+        )
+        .into_future(Irq {});
+
+        display_test::spawn().ok().unwrap();
+
+        (
+            Shared {},
+            Local {
+                delay,
+                display,
+                red_led,
+            },
+        )
     }
 
-    #[task(priority = 1, local = [display])]
+    #[task(priority = 1, local = [delay, display])]
     async fn display_test(cx: display_test::Context) {
-        output::display_test(cx.local.display).await
+        output::display_test(cx.local.delay, cx.local.display).await
     }
 
     #[idle(local = [red_led])]
