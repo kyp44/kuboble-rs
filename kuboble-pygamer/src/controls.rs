@@ -1,11 +1,8 @@
-use core::cell::RefCell;
-
 use kuboble_core::level_run::Direction;
-use pygamer::adc::Adc;
-use pygamer::delay::Delay;
+use pygamer::hal::adc::Adc;
+use pygamer::hal::prelude::*;
 use pygamer::pac::ADC1;
 use pygamer::pins::{ButtonReader, JoystickReader, Keys};
-use pygamer::prelude::*;
 use pygamer_engine::{ControlAction, Controller, GameResult};
 
 const JOYSTICK_THRESH: i16 = 1024;
@@ -31,7 +28,7 @@ impl JoystickReaderExt for JoystickReader {
         }
     }
 }
-
+/*
 pub struct PyGamerController<'a> {
     delay: &'a RefCell<Delay>,
     joystick_adc: Adc<ADC1>,
@@ -82,3 +79,4 @@ impl Controller for PyGamerController<'_> {
         }
     }
 }
+ */

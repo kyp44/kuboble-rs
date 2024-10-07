@@ -12,17 +12,9 @@ systick_monotonic!(Mono, 1000);
 #[rtic::app(device = pygamer::pac, dispatchers = [TC0])]
 mod app {
     use pygamer::{
-        delay::Delay,
-        gpio::{
-            v2::{Output, PushPull, PA23},
-            Pin,
-        },
-        prelude::*,
-        timer::SpinTimer,
-        Pins,
+        hal::{clock::GenericClockController, delay::Delay, prelude::*},
+        Pins, RedLed,
     };
-
-    type RedLed = Pin<PA23, Output<PushPull>>;
 
     use crate::{
         output::{self, DisplayDriver},
@@ -41,7 +33,7 @@ mod app {
     #[init]
     fn init(mut cx: init::Context) -> (Shared, Local) {
         // Get the peripherals and pins and setup clocks
-        let mut clocks = pygamer::clock::GenericClockController::with_internal_32kosc(
+        let mut clocks = GenericClockController::with_internal_32kosc(
             cx.device.GCLK,
             &mut cx.device.MCLK,
             &mut cx.device.OSC32KCTRL,
@@ -60,7 +52,6 @@ mod app {
                 &mut cx.device.MCLK,
                 cx.device.TC2,
                 &mut delay,
-                &mut pins.port,
             )
             .unwrap();
 
@@ -68,7 +59,7 @@ mod app {
         Mono::start(delay.free(), 120_000_000);
 
         // Set up the red LED
-        let red_led = pins.led_pin.into_open_drain_output(&mut pins.port);
+        let red_led = pins.led_pin.into();
 
         // Set up the neo-pixels driver
         // Note: This is the non-deprecated way but is jittery as commented in the example
