@@ -71,13 +71,14 @@ mod app {
             TC4 => InterruptHandler<pygamer::pac::Tc4>;
         });
 
+        // Setup the async timer
         let gclk0 = clocks.gclk0();
         let delay = TimerCounter::tc4_(
             &clocks.tc4_tc5(&gclk0).unwrap(),
             cx.device.tc4,
             &mut cx.device.mclk,
         )
-        .into_future(Irq {});
+        .into_future(Irq);
 
         display_test::spawn().ok().unwrap();
 

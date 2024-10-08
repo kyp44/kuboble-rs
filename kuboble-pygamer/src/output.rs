@@ -39,7 +39,7 @@ pub async fn display_test(delay: &mut TimerFuture<Tc4>, display: &mut DisplayDri
             .into_styled(PrimitiveStyle::with_fill(Rgb565::CSS_DARK_BLUE))
             .draw(display)
             .unwrap();
-        delay.delay(4.secs()).await;
+        delay.delay(1.secs()).await;
 
         embedded_graphics::primitives::Rectangle::new(Point::zero(), Size::new(100, 100))
             .into_styled(PrimitiveStyle::with_fill(Rgb565::CSS_DARK_RED))
