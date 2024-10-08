@@ -100,19 +100,13 @@ mod app {
     #[idle(local = [red_led])]
     fn idle(cx: idle::Context) -> ! {
         let mut count = 0u32;
-        let mut led_on = false;
 
         loop {
             count += 1;
             if count > 500 {
                 count = 0;
-                led_on = !led_on;
 
-                if led_on {
-                    cx.local.red_led.set_high().unwrap();
-                } else {
-                    cx.local.red_led.set_low().unwrap();
-                }
+                cx.local.red_led.toggle().unwrap();
             }
             rtic::export::wfi();
         }
