@@ -2,28 +2,31 @@
 #![no_main]
 #![feature(let_chains)]
 
+use atsamd_hal::async_hal::timer::{InterruptHandler, TimerFuture};
+use output::DisplayDriver;
+use pygamer::{
+    hal::{clock::GenericClockController, delay::Delay, prelude::*, timer::TimerCounter},
+    pac::Tc4,
+    Pins, RedLed,
+};
+
 mod controls;
 mod output;
 
+// Bind interrupt to the timer handler
+atsamd_hal::bind_interrupts!(struct Irqs {
+    TC4 => InterruptHandler<pygamer::pac::Tc4>;
+});
+
 #[rtic::app(device = pygamer::pac, dispatchers = [EVSYS_0])]
 mod app {
-    use crate::output::{self, DisplayDriver};
-    use atsamd_hal::{
-        async_hal::timer::{InterruptHandler, TimerFuture},
-        bind_interrupts,
-    };
-    use pygamer::{
-        hal::{clock::GenericClockController, delay::Delay, prelude::*, timer::TimerCounter},
-        pac::Tc4,
-        Pins, RedLed,
-    };
+    use super::*;
 
     #[shared]
     struct Shared {}
 
     #[local]
     struct Local {
-        delay: TimerFuture<Tc4>,
         display: DisplayDriver,
         red_led: RedLed,
     }
@@ -66,48 +69,37 @@ mod app {
         let neopixels_timer = SpinTimer::new(4);
         let neopixels = pins.neopixel.init(neopixels_timer, &mut pins.port);*/
 
-        // Bind interrupt to the timer handler
-        bind_interrupts!(struct Irq {
-            TC4 => InterruptHandler<pygamer::pac::Tc4>;
-        });
-
-        // Setup the async timer
+        /* // Setup the async timer
         let gclk0 = clocks.gclk0();
         let delay = TimerCounter::tc4_(
             &clocks.tc4_tc5(&gclk0).unwrap(),
             cx.device.tc4,
             &mut cx.device.mclk,
         )
-        .into_future(Irq);
+        .into_future(Irq); */
 
-        display_test::spawn().ok().unwrap();
+        // configure a clock for the TC4 and TC5 peripherals
+        let timer_clock = clocks.gclk0();
+        let tc45 = &clocks.tc4_tc5(&timer_clock).unwrap();
 
-        (
-            Shared {},
-            Local {
-                delay,
-                display,
-                red_led,
-            },
-        )
+        // instantiate a timer object for the TC4 peripheral
+        let timer = TimerCounter::tc4_(tc45, cx.device.tc4, &mut cx.device.mclk);
+        let timer = timer.into_future(Irqs);
+
+        display_test::spawn(timer).ok().unwrap();
+
+        (Shared {}, Local { display, red_led })
     }
 
-    #[task(priority = 1, local = [delay, display])]
-    async fn display_test(cx: display_test::Context) {
-        output::display_test(cx.local.delay, cx.local.display).await
+    #[task(priority = 1, local = [display])]
+    async fn display_test(cx: display_test::Context, timer: TimerFuture<Tc4>) {
+        output::display_test(timer, cx.local.display).await
     }
 
     #[idle(local = [red_led])]
     fn idle(cx: idle::Context) -> ! {
-        let mut count = 0u32;
-
         loop {
-            count += 1;
-            if count > 500 {
-                count = 0;
-
-                cx.local.red_led.toggle().unwrap();
-            }
+            cx.local.red_led.toggle().unwrap();
             rtic::export::wfi();
         }
     }

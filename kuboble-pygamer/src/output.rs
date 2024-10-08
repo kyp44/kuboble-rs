@@ -32,20 +32,20 @@ impl PieceExt for Piece {
 
 const STAR_COLOR: RGB<u8> = RGB::new(4, 4, 0);
 
-pub async fn display_test(delay: &mut TimerFuture<Tc4>, display: &mut DisplayDriver) -> ! {
+pub async fn display_test(mut delay: TimerFuture<Tc4>, display: &mut DisplayDriver) -> ! {
     display.clear(Rgb565::WHITE).unwrap();
     loop {
         embedded_graphics::primitives::Rectangle::new(Point::zero(), Size::new(100, 100))
             .into_styled(PrimitiveStyle::with_fill(Rgb565::CSS_DARK_BLUE))
             .draw(display)
             .unwrap();
-        delay.delay(1.secs()).await;
+        delay.delay(559.millis()).await;
 
         embedded_graphics::primitives::Rectangle::new(Point::zero(), Size::new(100, 100))
             .into_styled(PrimitiveStyle::with_fill(Rgb565::CSS_DARK_RED))
             .draw(display)
             .unwrap();
-        delay.delay(1.secs()).await;
+        delay.delay(500.millis()).await;
     }
 }
 /*
