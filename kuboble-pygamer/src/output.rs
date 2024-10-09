@@ -5,17 +5,25 @@ use embedded_graphics::prelude::*;
 use embedded_graphics::primitives::PrimitiveStyle;
 use kuboble_core::{LevelRating, Piece};
 use pygamer::{
-    hal::{async_hal::timer::TimerFuture, prelude::*},
+    hal::{
+        gpio::{Output, Pin, PushPull, PA15},
+        prelude::*,
+        timer::TimerCounter4,
+    },
     pac::Tc4,
     TftDc, TftReset, TftSpi,
 };
 use pygamer_engine::{BufferedDisplay, GameDisplay, GameIndicator, GameOutput};
+use rtic_monotonics::rtic_time::embedded_hal::delay::DelayNs;
+use rtic_monotonics::systick::prelude::*;
+use rtic_monotonics::Monotonic;
 use smart_leds::{SmartLedsWrite, RGB};
-use ws2812_timer_delay::Ws2812;
+
+use crate::Mono;
 
 pub type DisplayDriver = st7735_lcd::ST7735<TftSpi, TftDc, TftReset>;
 
-//pub type NeoPixels<T> = Ws2812<T, OldOutputPin<Pin<PA15, Output<PushPull>>>>;
+pub type NeoPixels = ws2812_timer_delay::Ws2812<TimerCounter4, Pin<PA15, Output<PushPull>>>;
 
 trait PieceExt {
     fn neopixel_color(&self) -> RGB<u8>;
@@ -32,20 +40,39 @@ impl PieceExt for Piece {
 
 const STAR_COLOR: RGB<u8> = RGB::new(4, 4, 0);
 
-pub async fn display_test(mut delay: TimerFuture<Tc4>, display: &mut DisplayDriver) -> ! {
+pub async fn neopixels_test(mut neopixels: NeoPixels) -> ! {
+    loop {
+        let colors = [Piece::Green.neopixel_color(), RGB::default()];
+
+        neopixels.write(colors.into_iter().cycle().take(5)).unwrap();
+        Mono::delay(333.millis()).await;
+
+        let colors = [Piece::Orange.neopixel_color(), RGB::default()];
+
+        neopixels.write(colors.into_iter().cycle().take(5)).unwrap();
+        Mono::delay(333.millis()).await;
+
+        let colors = [Piece::Blue.neopixel_color(), RGB::default()];
+
+        neopixels.write(colors.into_iter().cycle().take(5)).unwrap();
+        Mono::delay(333.millis()).await;
+    }
+}
+
+pub async fn display_test(mut display: DisplayDriver) -> ! {
     display.clear(Rgb565::WHITE).unwrap();
     loop {
         embedded_graphics::primitives::Rectangle::new(Point::zero(), Size::new(100, 100))
             .into_styled(PrimitiveStyle::with_fill(Rgb565::CSS_DARK_BLUE))
-            .draw(display)
+            .draw(&mut display)
             .unwrap();
-        delay.delay(559.millis()).await;
+        Mono::delay(1.secs()).await;
 
         embedded_graphics::primitives::Rectangle::new(Point::zero(), Size::new(100, 100))
             .into_styled(PrimitiveStyle::with_fill(Rgb565::CSS_DARK_RED))
-            .draw(display)
+            .draw(&mut display)
             .unwrap();
-        delay.delay(500.millis()).await;
+        Mono::delay(1.secs()).await;
     }
 }
 /*
