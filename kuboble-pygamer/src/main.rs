@@ -13,7 +13,7 @@ use pygamer::{
 mod controls;
 mod output;
 
-systick_monotonic!(Mono, 1000);
+systick_monotonic!(Mono, 20);
 
 #[rtic::app(device = pygamer::pac, dispatchers = [EVSYS_0])]
 mod app {
@@ -34,7 +34,7 @@ mod app {
         let _core = cx.core;
 
         // Setup the clocks
-        let mut clocks = GenericClockController::with_external_32kosc(
+        let mut clocks = GenericClockController::with_internal_32kosc(
             peripherals.gclk,
             &mut peripherals.mclk,
             &mut peripherals.osc32kctrl,
@@ -66,8 +66,12 @@ mod app {
         let timer_clock = clocks.gclk0();
         let tc45 = &clocks.tc4_tc5(&timer_clock).unwrap();
 
-        // Set up the neo-pixels driver
-        let neopixels_timer = TimerCounter::tc4_(tc45, peripherals.tc4, &mut peripherals.mclk);
+        // Set up the neo-pixels driver started at a 3 MHz rate
+        let mut neopixels_timer = TimerCounter::tc4_(tc45, peripherals.tc4, &mut peripherals.mclk);
+        _embedded_hal_timer_CountDown::start(
+            &mut neopixels_timer,
+            3.MHz::<1000000, 1>().into_duration(),
+        );
         let neopixels = ws2812_timer_delay::Ws2812::new(
             neopixels_timer,
             pins.neopixel.neopixel.into_push_pull_output(),
@@ -94,7 +98,7 @@ mod app {
         let mut count = 0;
         loop {
             count += 1;
-            if count > 500 {
+            if count > 10 {
                 cx.local.red_led.toggle().unwrap();
                 count = 0;
             }

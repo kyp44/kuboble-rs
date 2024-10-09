@@ -25,7 +25,7 @@ pub type DisplayDriver = st7735_lcd::ST7735<TftSpi, TftDc, TftReset>;
 
 pub type NeoPixels = ws2812_timer_delay::Ws2812<TimerCounter4, Pin<PA15, Output<PushPull>>>;
 
-trait PieceExt {
+pub trait PieceExt {
     fn neopixel_color(&self) -> RGB<u8>;
 }
 impl PieceExt for Piece {
@@ -45,17 +45,17 @@ pub async fn neopixels_test(mut neopixels: NeoPixels) -> ! {
         let colors = [Piece::Green.neopixel_color(), RGB::default()];
 
         neopixels.write(colors.into_iter().cycle().take(5)).unwrap();
-        Mono::delay(333.millis()).await;
+        Mono::delay(750.millis()).await;
 
         let colors = [Piece::Orange.neopixel_color(), RGB::default()];
 
         neopixels.write(colors.into_iter().cycle().take(5)).unwrap();
-        Mono::delay(333.millis()).await;
+        Mono::delay(750.millis()).await;
 
         let colors = [Piece::Blue.neopixel_color(), RGB::default()];
 
         neopixels.write(colors.into_iter().cycle().take(5)).unwrap();
-        Mono::delay(333.millis()).await;
+        Mono::delay(750.millis()).await;
     }
 }
 
