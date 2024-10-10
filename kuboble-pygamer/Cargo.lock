@@ -55,7 +55,6 @@ dependencies = [
  "bitflags 2.6.0",
  "cipher",
  "cortex-m",
- "critical-section",
  "embedded-hal 0.2.7",
  "embedded-hal 1.0.0",
  "embedded-hal-nb",
@@ -67,6 +66,8 @@ dependencies = [
  "opaque-debug",
  "paste",
  "rand_core",
+ "rtic-monotonic",
+ "rtic-time",
  "seq-macro",
  "typenum",
  "vcell",
@@ -625,6 +626,7 @@ dependencies = [
 name = "kuboble-pygamer"
 version = "0.1.0"
 dependencies = [
+ "atsamd-hal",
  "cortex-m",
  "derive-new",
  "embedded-graphics",
@@ -632,7 +634,6 @@ dependencies = [
  "pygamer",
  "pygamer-engine",
  "rtic",
- "rtic-monotonics",
  "smart-leds",
  "st7735-lcd",
  "ws2812-timer-delay",
@@ -824,12 +825,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "portable-atomic"
-version = "1.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc9c68a3f6da06753e9335d63e27f6b9754dd1920d941135b7ea8224f141adb2"
-
-[[package]]
 name = "proc-macro-error"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -989,17 +984,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "rtic-monotonics"
-version = "2.0.2"
+name = "rtic-monotonic"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e17f88319061d17d3b99997263397b176e3260177e2b4ff4ffed0078d97894c"
-dependencies = [
- "cfg-if",
- "cortex-m",
- "fugit",
- "portable-atomic",
- "rtic-time",
-]
+checksum = "fb8b0b822d1a366470b9cea83a1d4e788392db763539dc4ba022bcc787fece82"
 
 [[package]]
 name = "rtic-time"

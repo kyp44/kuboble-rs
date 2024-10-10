@@ -2,8 +2,6 @@
 #![no_main]
 #![feature(let_chains)]
 
-use rtic_monotonics::systick::prelude::*;
-
 use output::{DisplayDriver, NeoPixels};
 use pygamer::{
     hal::{clock::GenericClockController, delay::Delay, prelude::*, timer::TimerCounter},
@@ -13,7 +11,7 @@ use pygamer::{
 mod controls;
 mod output;
 
-systick_monotonic!(Mono, 20);
+rtc_monotonic!(Mono);
 
 #[rtic::app(device = pygamer::pac, dispatchers = [EVSYS_0])]
 mod app {
@@ -57,7 +55,7 @@ mod app {
             .unwrap();
 
         // Start the monotonic
-        Mono::start(delay.free(), 120_000_000);
+        Mono::start(peripherals.rtc, &mut peripherals.mclk);
 
         // Set up the red LED
         let red_led = pins.led_pin.into();
@@ -90,7 +88,7 @@ mod app {
 
     #[task(priority = 1)]
     async fn neopixels_test(cx: neopixels_test::Context, neopixels: NeoPixels) {
-        output::neopixels_test(neopixels).await;
+        output::neopixels_test(neopixels).await
     }
 
     #[idle(local = [red_led])]

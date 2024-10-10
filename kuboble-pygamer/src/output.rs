@@ -14,9 +14,6 @@ use pygamer::{
     TftDc, TftReset, TftSpi,
 };
 use pygamer_engine::{BufferedDisplay, GameDisplay, GameIndicator, GameOutput};
-use rtic_monotonics::rtic_time::embedded_hal::delay::DelayNs;
-use rtic_monotonics::systick::prelude::*;
-use rtic_monotonics::Monotonic;
 use smart_leds::{SmartLedsWrite, RGB};
 
 use crate::Mono;
