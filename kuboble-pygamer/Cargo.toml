@@ -13,7 +13,7 @@ cortex-m = {version = "0.7.7", features = ["critical-section-single-core"]}
 derive-new = "0.7.0"
 embedded-graphics = "0.7.1"
 kuboble-core = {path = "../kuboble-core"}
-pygamer = {version = "0.10.0", features = ["panic_led"]}
+pygamer = {version = "0.10.0", features = ["panic_led", "rt"]}
 pygamer-engine = {path = "../pygamer-engine"}
 rtic = {version = "2.1.1", features = ["thumbv7-backend"]}
 smart-leds = "0.3.0"

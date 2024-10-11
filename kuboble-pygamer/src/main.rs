@@ -93,15 +93,9 @@ mod app {
 
     #[idle(local = [red_led])]
     fn idle(cx: idle::Context) -> ! {
-        let mut count = 0;
         loop {
-            count += 1;
-            if count > 10 {
-                cx.local.red_led.toggle().unwrap();
-                count = 0;
-            }
-
             rtic::export::wfi();
+            cx.local.red_led.toggle().unwrap();
         }
     }
 }
