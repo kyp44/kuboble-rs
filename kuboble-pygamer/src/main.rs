@@ -55,7 +55,11 @@ mod app {
             .unwrap();
 
         // Start the monotonic
-        Mono::start(peripherals.rtc, &mut peripherals.mclk);
+        Mono::start(
+            peripherals.rtc,
+            &mut peripherals.mclk,
+            &mut peripherals.osc32kctrl,
+        );
 
         // Set up the red LED
         let red_led = pins.led_pin.into();
