@@ -42,8 +42,7 @@ pub async fn neopixels_test(mut neopixels: NeoPixels) -> ! {
         let colors = [Piece::Green.neopixel_color(), RGB::default()];
 
         neopixels.write(colors.into_iter().cycle().take(5)).unwrap();
-        //Mono::delay(750.millis()).await;
-        Mono::delay(5.secs()).await;
+        Mono::delay(750.millis()).await;
 
         let colors = [Piece::Orange.neopixel_color(), RGB::default()];
 
