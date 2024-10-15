@@ -37,21 +37,33 @@ impl PieceExt for Piece {
 
 const STAR_COLOR: RGB<u8> = RGB::new(4, 4, 0);
 
+trait NeoPixelsExt {
+    fn set(&mut self, iter: impl Iterator<Item = RGB<u8>>);
+}
+impl NeoPixelsExt for NeoPixels {
+    fn set(&mut self, iter: impl Iterator<Item = RGB<u8>>) {
+        // Need to disable interrupts here because interrupts can wreck the timing
+        critical_section::with(|_| {
+            self.write(iter).unwrap();
+        })
+    }
+}
+
 pub async fn neopixels_test(mut neopixels: NeoPixels) -> ! {
     loop {
         let colors = [Piece::Green.neopixel_color(), RGB::default()];
 
-        neopixels.write(colors.into_iter().cycle().take(5)).unwrap();
+        neopixels.set(colors.into_iter().cycle().take(5));
         Mono::delay(750.millis()).await;
 
         let colors = [Piece::Orange.neopixel_color(), RGB::default()];
 
-        neopixels.write(colors.into_iter().cycle().take(5)).unwrap();
+        neopixels.set(colors.into_iter().cycle().take(5));
         Mono::delay(750.millis()).await;
 
         let colors = [Piece::Blue.neopixel_color(), RGB::default()];
 
-        neopixels.write(colors.into_iter().cycle().take(5)).unwrap();
+        neopixels.set(colors.into_iter().cycle().take(5));
         Mono::delay(750.millis()).await;
     }
 }

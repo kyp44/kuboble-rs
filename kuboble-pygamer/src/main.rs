@@ -99,7 +99,7 @@ mod app {
     fn idle(cx: idle::Context) -> ! {
         loop {
             rtic::export::wfi();
-            //cx.local.red_led.toggle().unwrap();
+            cx.local.red_led.toggle().unwrap();
         }
     }
 }

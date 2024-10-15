@@ -628,6 +628,7 @@ version = "0.1.0"
 dependencies = [
  "atsamd-hal",
  "cortex-m",
+ "critical-section",
  "derive-new",
  "embedded-graphics",
  "kuboble-core",
