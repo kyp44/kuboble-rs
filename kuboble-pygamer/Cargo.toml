@@ -10,7 +10,7 @@ pygamer = {path = "../../atsamd/boards/pygamer"}
 [dependencies]
 atsamd-hal = {version = "0.17.0", features = ["rtic"]}
 cortex-m = {version = "0.7.7", features = ["critical-section-single-core"]}
-critical-section = "1.1.3"
+critical-section = "1.2.0"
 derive-new = "0.7.0"
 embedded-graphics = "0.7.1"
 kuboble-core = {path = "../kuboble-core"}

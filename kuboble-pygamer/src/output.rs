@@ -50,38 +50,47 @@ impl NeoPixelsExt for NeoPixels {
 }
 
 pub async fn neopixels_test(mut neopixels: NeoPixels) -> ! {
+    #[inline]
+    fn test_colors(color: RGB<u8>) -> impl Iterator<Item = RGB<u8>> {
+        [color; 5].into_iter()
+        //colors.into_iter().cycle().take(5))
+    }
+
     loop {
-        let colors = [Piece::Green.neopixel_color(), RGB::default()];
+        //const DELAY_MS: u32 = 750;
+        const DELAY_MS: u32 = 1000;
 
-        neopixels.set(colors.into_iter().cycle().take(5));
-        Mono::delay(750.millis()).await;
+        neopixels.set(test_colors(Piece::Green.neopixel_color()));
+        Mono::delay(DELAY_MS.millis()).await;
 
-        let colors = [Piece::Orange.neopixel_color(), RGB::default()];
+        let colors = [Piece::Orange.neopixel_color(); 5];
 
-        neopixels.set(colors.into_iter().cycle().take(5));
-        Mono::delay(750.millis()).await;
+        neopixels.set(test_colors(Piece::Orange.neopixel_color()));
+        Mono::delay(DELAY_MS.millis()).await;
 
-        let colors = [Piece::Blue.neopixel_color(), RGB::default()];
+        let colors = [Piece::Blue.neopixel_color(); 5];
 
-        neopixels.set(colors.into_iter().cycle().take(5));
-        Mono::delay(750.millis()).await;
+        neopixels.set(test_colors(Piece::Blue.neopixel_color()));
+        Mono::delay(DELAY_MS.millis()).await;
     }
 }
 
 pub async fn display_test(mut display: DisplayDriver) -> ! {
+    const DELAY_MS: u32 = 1000;
+
     display.clear(Rgb565::WHITE).unwrap();
     loop {
         embedded_graphics::primitives::Rectangle::new(Point::zero(), Size::new(100, 100))
             .into_styled(PrimitiveStyle::with_fill(Rgb565::CSS_DARK_BLUE))
             .draw(&mut display)
             .unwrap();
-        Mono::delay(1.secs()).await;
+        Mono::delay(DELAY_MS.millis()).await;
 
         embedded_graphics::primitives::Rectangle::new(Point::zero(), Size::new(100, 100))
             .into_styled(PrimitiveStyle::with_fill(Rgb565::CSS_DARK_RED))
             .draw(&mut display)
             .unwrap();
-        Mono::delay(1.secs()).await;
+        Mono::delay(DELAY_MS.millis()).await;
     }
 }
 /*

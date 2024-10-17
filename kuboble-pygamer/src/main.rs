@@ -81,6 +81,7 @@ mod app {
 
         display_test::spawn(display).ok().unwrap();
         neopixels_test::spawn(neopixels).ok().unwrap();
+        led_test::spawn().ok().unwrap();
 
         (Shared {}, Local { red_led })
     }
@@ -95,11 +96,21 @@ mod app {
         output::neopixels_test(neopixels).await
     }
 
-    #[idle(local = [red_led])]
+    #[task(priority = 1, local=[red_led])]
+    async fn led_test(cx: led_test::Context) {
+        loop {
+            //Mono::delay(1200.millis()).await;
+            Mono::delay(1.secs()).await;
+            cx.local.red_led.toggle().unwrap();
+        }
+    }
+
+    //#[idle(local = [red_led])]
+    #[idle]
     fn idle(cx: idle::Context) -> ! {
         loop {
             rtic::export::wfi();
-            cx.local.red_led.toggle().unwrap();
+            //cx.local.red_led.toggle().unwrap();
         }
     }
 }
