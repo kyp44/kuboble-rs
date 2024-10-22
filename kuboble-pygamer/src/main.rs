@@ -4,14 +4,16 @@
 
 use output::{DisplayDriver, NeoPixels};
 use pygamer::{
-    hal::{clock::GenericClockController, delay::Delay, prelude::*, timer::TimerCounter},
+    hal::{
+        clock::GenericClockController, delay::Delay, fugit::ExtU64, prelude::*, timer::TimerCounter,
+    },
     Pins, RedLed,
 };
 
 mod controls;
 mod output;
 
-rtc_monotonic!(Mono);
+rtc_monotonic_32k_int!(Mono);
 
 #[rtic::app(device = pygamer::pac, dispatchers = [EVSYS_0])]
 mod app {
@@ -100,7 +102,7 @@ mod app {
     async fn led_test(cx: led_test::Context) {
         loop {
             //Mono::delay(1200.millis()).await;
-            Mono::delay(1.secs()).await;
+            Mono::delay(1u64.secs()).await;
             cx.local.red_led.toggle().unwrap();
         }
     }

@@ -8,7 +8,7 @@ atsamd-hal = {path = "../../atsamd/hal"}
 pygamer = {path = "../../atsamd/boards/pygamer"}
 
 [dependencies]
-atsamd-hal = {version = "0.17.0", features = ["rtic"]}
+atsamd-hal = {version = "0.18.0", features = ["rtic"]}
 cortex-m = {version = "0.7.7", features = ["critical-section-single-core"]}
 critical-section = "1.2.0"
 derive-new = "0.7.0"

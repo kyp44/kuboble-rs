@@ -46,7 +46,7 @@ dependencies = [
 
 [[package]]
 name = "atsamd-hal"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "aes",
  "atsamd-hal-macros",
@@ -78,7 +78,7 @@ dependencies = [
 
 [[package]]
 name = "atsamd-hal-macros"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "litrs",
  "phf",
@@ -89,7 +89,7 @@ dependencies = [
 
 [[package]]
 name = "atsamd51j"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "cortex-m",
  "cortex-m-rt",

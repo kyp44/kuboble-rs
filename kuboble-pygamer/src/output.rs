@@ -6,11 +6,11 @@ use embedded_graphics::primitives::PrimitiveStyle;
 use kuboble_core::{LevelRating, Piece};
 use pygamer::{
     hal::{
+        fugit::ExtU64,
         gpio::{Output, Pin, PushPull, PA15},
         prelude::*,
         timer::TimerCounter4,
     },
-    pac::Tc4,
     TftDc, TftReset, TftSpi,
 };
 use pygamer_engine::{BufferedDisplay, GameDisplay, GameIndicator, GameOutput};
@@ -57,8 +57,8 @@ pub async fn neopixels_test(mut neopixels: NeoPixels) -> ! {
     }
 
     loop {
-        //const DELAY_MS: u32 = 750;
-        const DELAY_MS: u32 = 1000;
+        //const DELAY_MS: u64 = 750;
+        const DELAY_MS: u64 = 1000;
 
         neopixels.set(test_colors(Piece::Green.neopixel_color()));
         Mono::delay(DELAY_MS.millis()).await;
@@ -76,7 +76,7 @@ pub async fn neopixels_test(mut neopixels: NeoPixels) -> ! {
 }
 
 pub async fn display_test(mut display: DisplayDriver) -> ! {
-    const DELAY_MS: u32 = 1000;
+    const DELAY_MS: u64 = 1000;
 
     display.clear(Rgb565::WHITE).unwrap();
     loop {
