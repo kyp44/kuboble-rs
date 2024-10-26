@@ -3,33 +3,19 @@ use core::iter::{repeat, repeat_n};
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
 use kuboble_core::{LevelRating, Piece};
-use pygamer::gpio::v2::PA15;
-use pygamer::gpio::Pin;
-use pygamer::hal::hal::digital::v1_compat::OldOutputPin;
-use pygamer::hal::hal::timer::{CountDown, Periodic};
 use pygamer::{
-    gpio::v2::{Alternate, Output, PushPull, C, PA00, PB05, PB13, PB14, PB15},
-    pac::SERCOM4,
-    sercom::{
-        v2::{Pad1, Pad2, Pad3},
-        Pad, SPIMaster4,
+    hal::{
+        gpio::{Output, Pin, PushPull, PA15},
+        timer::TimerCounter4,
     },
+    TftDc, TftReset, TftSpi,
 };
 use pygamer_engine::{BufferedDisplay, GameDisplay, GameIndicator, GameOutput};
 use smart_leds::{SmartLedsWrite, RGB};
-use ws2812_timer_delay::Ws2812;
 
-type DisplayDriver = st7735_lcd::ST7735<
-    SPIMaster4<
-        Pad<SERCOM4, Pad2, Pin<PB14, Alternate<C>>>,
-        Pad<SERCOM4, Pad3, Pin<PB15, Alternate<C>>>,
-        Pad<SERCOM4, Pad1, Pin<PB13, Alternate<C>>>,
-    >,
-    Pin<PB05, Output<PushPull>>,
-    Pin<PA00, Output<PushPull>>,
->;
+pub type DisplayDriver = st7735_lcd::ST7735<TftSpi, TftDc, TftReset>;
 
-type NeoPixels<T> = Ws2812<T, OldOutputPin<Pin<PA15, Output<PushPull>>>>;
+pub type NeoPixels = ws2812_timer_delay::Ws2812<TimerCounter4, Pin<PA15, Output<PushPull>>>;
 
 trait PieceExt {
     fn neopixel_color(&self) -> RGB<u8>;
@@ -46,13 +32,13 @@ impl PieceExt for Piece {
 
 const STAR_COLOR: RGB<u8> = RGB::new(4, 4, 0);
 
-pub struct PyGamerOutput<T> {
+pub struct PyGamerOutput {
     display: DisplayDriver,
     buffer: BufferedDisplay,
-    neopixels: NeoPixels<T>,
+    neopixels: NeoPixels,
 }
-impl<T> PyGamerOutput<T> {
-    pub fn new(display: DisplayDriver, neopixels: NeoPixels<T>) -> Self {
+impl PyGamerOutput {
+    pub fn new(display: DisplayDriver, neopixels: NeoPixels) -> Self {
         Self {
             display,
             buffer: BufferedDisplay::default(),
@@ -60,7 +46,7 @@ impl<T> PyGamerOutput<T> {
         }
     }
 }
-impl<T: CountDown + Periodic> GameIndicator for PyGamerOutput<T> {
+impl GameIndicator for PyGamerOutput {
     fn indicate_active_piece(&mut self, piece: Piece) {
         let colors = [piece.neopixel_color(), RGB::default()];
 
@@ -86,13 +72,13 @@ impl<T: CountDown + Periodic> GameIndicator for PyGamerOutput<T> {
             .unwrap();
     }
 }
-impl<T> OriginDimensions for PyGamerOutput<T> {
+impl OriginDimensions for PyGamerOutput {
     #[inline]
     fn size(&self) -> Size {
         self.buffer.size()
     }
 }
-impl<T> DrawTarget for PyGamerOutput<T> {
+impl DrawTarget for PyGamerOutput {
     type Color = Rgb565;
 
     type Error = <BufferedDisplay as DrawTarget>::Error;
@@ -104,11 +90,11 @@ impl<T> DrawTarget for PyGamerOutput<T> {
         self.buffer.draw_iter(pixels)
     }
 }
-impl<T> GameDisplay for PyGamerOutput<T> {
+impl GameDisplay for PyGamerOutput {
     fn flush(&mut self) {
         self.buffer.draw(&mut self.display).unwrap()
     }
 }
-impl<T: CountDown + Periodic> GameOutput for PyGamerOutput<T> {
+impl GameOutput for PyGamerOutput {
     const SLIDE_SPEED: i32 = 14;
 }

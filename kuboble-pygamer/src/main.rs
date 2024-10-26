@@ -7,11 +7,12 @@ use core::cell::RefCell;
 use kuboble_core::level_select::LevelProgress;
 use output::PyGamerOutput;
 use pac::{CorePeripherals, Peripherals};
-use pygamer::adc::Adc;
-use pygamer::clock::GenericClockController;
-use pygamer::delay::Delay;
-use pygamer::pac::gclk::pchctrl::GEN_A;
-use pygamer::timer::SpinTimer;
+use pygamer::hal::adc::Adc;
+use pygamer::hal::clock::GenericClockController;
+use pygamer::hal::delay::Delay;
+use pygamer::hal::prelude::*;
+use pygamer::hal::timer::TimerCounter;
+use pygamer::pac::gclk::pchctrl::Genselect;
 use pygamer::{entry, pac, Pins};
 use pygamer_engine::run_game;
 
@@ -24,13 +25,13 @@ fn main() -> ! {
     let mut peripherals = Peripherals::take().unwrap();
     let core = CorePeripherals::take().unwrap();
     let mut clocks = GenericClockController::with_internal_32kosc(
-        peripherals.GCLK,
-        &mut peripherals.MCLK,
-        &mut peripherals.OSC32KCTRL,
-        &mut peripherals.OSCCTRL,
-        &mut peripherals.NVMCTRL,
+        peripherals.gclk,
+        &mut peripherals.mclk,
+        &mut peripherals.osc32kctrl,
+        &mut peripherals.oscctrl,
+        &mut peripherals.nvmctrl,
     );
-    let mut pins = Pins::new(peripherals.PORT).split();
+    let pins = Pins::new(peripherals.port).split();
     // TODO: use sleeping delay here for battery life? Evidently worth it even for delays of like 50ms
     let mut delay = Delay::new(core.SYST, &mut clocks);
 
@@ -39,26 +40,30 @@ fn main() -> ! {
         .display
         .init(
             &mut clocks,
-            peripherals.SERCOM4,
-            &mut peripherals.MCLK,
-            peripherals.TC2,
+            peripherals.sercom4,
+            &mut peripherals.mclk,
+            peripherals.tc2,
             &mut delay,
-            &mut pins.port,
         )
         .unwrap();
 
     // Need to share the delay
     let delay = RefCell::new(delay);
 
-    // Set up the neo-pixels driver
-    // Note: This is the non-deprecated way but is jittery as commented in the example
-    // here: https://github.com/atsamd-rs/atsamd/blob/master/boards/pygamer/examples/neopixel_rainbow_spi.rs
-    // Maybe look back into this later so we don't have to use the deprecated SpinTimer.
-    /* let tc4_clock = clocks.tc4_tc5(&clocks.gclk0()).unwrap();
-    let mut neopixels_timer = TimerCounter::tc4_(&tc4_clock, peripherals.TC4, &mut peripherals.MCLK);
-    neopixels_timer.start(3.mhz()); */
-    let neopixels_timer = SpinTimer::new(4);
-    let neopixels = pins.neopixel.init(neopixels_timer, &mut pins.port);
+    // Configure a clock for the TC4 and TC5 peripherals
+    let timer_clock = clocks.gclk0();
+    let tc45 = &clocks.tc4_tc5(&timer_clock).unwrap();
+
+    // Set up the neo-pixels driver started at a 3 MHz rate
+    let mut neopixels_timer = TimerCounter::tc4_(tc45, peripherals.tc4, &mut peripherals.mclk);
+    _embedded_hal_timer_CountDown::start(
+        &mut neopixels_timer,
+        3.MHz::<1000000, 1>().into_duration(),
+    );
+    let neopixels = ws2812_timer_delay::Ws2812::new(
+        neopixels_timer,
+        pins.neopixel.neopixel.into_push_pull_output(),
+    );
 
     // TODO Need to read and later write this from EEPROM
     let mut level_progress = LevelProgress::default();
@@ -67,13 +72,13 @@ fn main() -> ! {
         PyGamerController::new(
             &delay,
             Adc::adc1(
-                peripherals.ADC1,
-                &mut peripherals.MCLK,
+                peripherals.adc1,
+                &mut peripherals.mclk,
                 &mut clocks,
-                GEN_A::GCLK11,
+                Genselect::Gclk11,
             ),
-            pins.joystick.init(&mut pins.port),
-            pins.buttons.init(&mut pins.port),
+            pins.joystick.init(),
+            pins.buttons.init(),
         ),
         PyGamerOutput::new(display, neopixels),
         &mut level_progress,
