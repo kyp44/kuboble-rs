@@ -4,11 +4,14 @@ name = "kuboble-pygamer"
 version = "0.1.0"
 
 [patch.crates-io]
+atsamd-hal = {path = "../../atsamd/hal"}
 pygamer = {path = "../../atsamd/boards/pygamer"}
 
 [dependencies]
+atsamd-hal = {version = "0.18.0", features = ["rtic", "dma"]}
 derive-new = "0.7.0"
 embedded-graphics = "0.7.1"
+embedded-hal = "0.2.5"
 kuboble-core = {path = "../kuboble-core"}
 pygamer = {version = "0.10.0", features = ["panic_led"]}
 pygamer-engine = {path = "../pygamer-engine"}

@@ -2,8 +2,12 @@
 #![no_main]
 #![feature(let_chains)]
 
+use atsamd_hal as hal;
+use atsamd_hal::gpio::PA01;
+use atsamd_hal::pwm::Pwm2;
 use controls::PyGamerController;
 use core::cell::RefCell;
+use embedded_hal::blocking::spi::Write as SpiWrite;
 use kuboble_core::level_select::LevelProgress;
 use output::PyGamerOutput;
 use pac::{CorePeripherals, Peripherals};
@@ -13,11 +17,73 @@ use pygamer::hal::delay::Delay;
 use pygamer::hal::prelude::*;
 use pygamer::hal::timer::TimerCounter;
 use pygamer::pac::gclk::pchctrl::Genselect;
-use pygamer::{entry, pac, Pins};
+use pygamer::{entry, pac, Pins, TftCs, TftDc, TftReset, TftSpi};
 use pygamer_engine::run_game;
+use st7735_lcd::{Orientation, ST7735};
 
 mod controls;
 mod output;
+
+struct DmaSpi(TftSpi);
+impl SpiWrite<u8> for DmaSpi {
+    type Error = pygamer::hal::sercom::spi::Error;
+
+    fn write(&mut self, words: &[u8]) -> Result<(), Self::Error> {
+        SpiWrite::write(&mut self.0, words)
+    }
+}
+
+trait DisplayExt {
+    fn init_dma(
+        self,
+        clocks: &mut GenericClockController,
+        sercom4: pac::Sercom4,
+        mclk: &mut pac::Mclk,
+        timer2: pac::Tc2,
+        delay: &mut pygamer::hal::delay::Delay,
+    ) -> Result<(ST7735<DmaSpi, TftDc, TftReset>, Pwm2<PA01>), ()>;
+}
+impl DisplayExt for pygamer::Display {
+    /// Convenience for setting up the on board display with DMA.
+    fn init_dma(
+        self,
+        clocks: &mut GenericClockController,
+        sercom4: pac::Sercom4,
+        mclk: &mut pac::Mclk,
+        timer2: pac::Tc2,
+        delay: &mut pygamer::hal::delay::Delay,
+    ) -> Result<(ST7735<DmaSpi, TftDc, TftReset>, Pwm2<PA01>), ()> {
+        use hal::sercom::spi;
+
+        let gclk0 = clocks.gclk0();
+        let clock = &clocks.sercom4_core(&gclk0).ok_or(())?;
+        let pads = spi::Pads::default()
+            .sclk(self.tft_sclk)
+            .data_out(self.tft_mosi);
+        let tft_spi = spi::Config::new(mclk, sercom4, pads, clock.freq())
+            .spi_mode(spi::MODE_0)
+            .baud(16.MHz())
+            .enable();
+        let mut tft_cs: TftCs = self.tft_cs.into();
+        tft_cs.set_low().ok();
+        let mut display = st7735_lcd::ST7735::new(
+            DmaSpi(tft_spi),
+            self.tft_dc.into(),
+            self.tft_reset.into(),
+            true,
+            false,
+            160,
+            128,
+        );
+        display.init(delay)?;
+        display.set_orientation(&Orientation::LandscapeSwapped)?;
+        let pwm_clock = &clocks.tc2_tc3(&gclk0).ok_or(())?;
+        let pwm_pinout = hal::pwm::TC2Pinout::Pa1(self.tft_backlight);
+        let mut pwm2 = Pwm2::new(pwm_clock, 1.kHz(), timer2, pwm_pinout, mclk);
+        pwm2.set_duty(pwm2.get_max_duty());
+        Ok((display, pwm2))
+    }
+}
 
 #[entry]
 fn main() -> ! {
@@ -36,10 +102,10 @@ fn main() -> ! {
     //let x = SleepingDelay::new();
     let mut delay = Delay::new(core.SYST, &mut clocks);
 
-    // Initialize the display
+    // Initialize the display using DMA
     let (display, _backlight) = pins
         .display
-        .init(
+        .init_dma(
             &mut clocks,
             peripherals.sercom4,
             &mut peripherals.mclk,
