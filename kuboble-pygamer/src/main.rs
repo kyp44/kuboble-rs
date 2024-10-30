@@ -5,12 +5,12 @@
 use controls::PyGamerController;
 use core::cell::RefCell;
 use kuboble_core::level_select::LevelProgress;
-use output::PyGamerOutput;
 use pac::{CorePeripherals, Peripherals};
 use pygamer::hal::adc::Adc;
 use pygamer::hal::clock::GenericClockController;
 use pygamer::hal::delay::Delay;
 use pygamer::hal::prelude::*;
+use pygamer::hal::sercom::spi;
 use pygamer::hal::timer::TimerCounter;
 use pygamer::pac::gclk::pchctrl::Genselect;
 use pygamer::{entry, pac, Pins};
@@ -51,20 +51,25 @@ fn main() -> ! {
     // Need to share the delay
     let delay = RefCell::new(delay);
 
-    // Configure a clock for the TC4 and TC5 peripherals
-    let timer_clock = clocks.gclk0();
-    let tc45 = &clocks.tc4_tc5(&timer_clock).unwrap();
+    let pads: output::Test<_, _, _> = spi::Pads::default()
+        .sclk(pins.sd_cs_pin.into())
+        .data_out(pins.neopixel.into());
 
-    // Set up the neo-pixels driver started at a 3 MHz rate
-    let mut neopixels_timer = TimerCounter::tc4_(tc45, peripherals.tc4, &mut peripherals.mclk);
-    _embedded_hal_timer_CountDown::start(
-        &mut neopixels_timer,
-        3.MHz::<1000000, 1>().into_duration(),
-    );
-    let neopixels = ws2812_timer_delay::Ws2812::new(
-        neopixels_timer,
-        pins.neopixel.neopixel.into_push_pull_output(),
-    );
+    /* let config = spi::Config::new(
+        &mut peripherals.mclk,
+        peripherals.sercom2,
+        pads,
+        clocks.sercom2_core(&clocks.gclk0()).unwrap().freq(),
+    )
+    .spi_mode(spi::MODE_0)
+    .baud(3.MHz());
+
+    let neopixels_spi = config.enable().into_panic_on_read();
+
+    let mut neopixels: () = ws2812_spi::Ws2812::new(neopixels_spi);
+
+    use smart_leds::{SmartLedsWrite, RGB};
+    neopixels.write();
 
     // TODO Need to read and later write this from EEPROM
     let mut level_progress = LevelProgress::default();
@@ -83,7 +88,7 @@ fn main() -> ! {
         ),
         PyGamerOutput::new(display, neopixels),
         &mut level_progress,
-    );
+    ); */
 
     loop {}
 }
