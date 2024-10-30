@@ -8,12 +8,12 @@ pygamer = {path = "../../atsamd/boards/pygamer"}
 
 [dependencies]
 derive-new = "0.7.0"
-embedded-graphics = "0.7.1"
+embedded-graphics = "0.8.1"
 kuboble-core = {path = "../kuboble-core"}
-pygamer = {version = "0.10.0", features = ["panic_led"]}
+pygamer = {version = "0.11.0", features = ["panic_led"]}
 pygamer-engine = {path = "../pygamer-engine"}
 smart-leds = "0.3.0"
-st7735-lcd = "0.8.1"
+st7735-lcd = "0.10.0"
 ws2812-timer-delay = "0.3.0"
 
 [features]
