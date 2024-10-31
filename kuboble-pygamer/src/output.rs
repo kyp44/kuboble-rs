@@ -8,12 +8,10 @@ use pygamer::{
         gpio::{Output, Pin, PushPull, PA15},
         timer::TimerCounter4,
     },
-    TftDc, TftReset, TftSpi,
+    DisplayDriver,
 };
 use pygamer_engine::{BufferedDisplay, GameDisplay, GameIndicator, GameOutput};
 use smart_leds::{SmartLedsWrite, RGB};
-
-pub type DisplayDriver = st7735_lcd::ST7735<TftSpi, TftDc, TftReset>;
 
 pub type NeoPixels = ws2812_timer_delay::Ws2812<TimerCounter4, Pin<PA15, Output<PushPull>>>;
 
