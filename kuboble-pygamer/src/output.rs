@@ -1,10 +1,13 @@
 use core::iter::{repeat, repeat_n};
 
+use atsamd_hal::dmac::{Channel, Ready};
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
 use kuboble_core::{LevelRating, Piece};
 use pygamer::{
     hal::{
+        self,
+        dmac::dma_controller::Ch0,
         gpio::{PA13, PA15},
         sercom::{spi, IoSet1},
         typelevel::NoneT,
@@ -21,7 +24,12 @@ pub type Test = spi::PadsFromIds<Sercom2, IoSet1, NoneT, PA15, PA13>;
 
 pub type NeoPixels = ws2812_spi::Ws2812<
     spi::PanicOnRead<
-        spi::Spi<spi::Config<spi::PadsFromIds<Sercom2, IoSet1, NoneT, PA15, PA13>>, spi::Tx>,
+        spi::Spi<
+            spi::Config<spi::PadsFromIds<Sercom2, IoSet1, NoneT, PA15, PA13>>,
+            spi::Tx,
+            hal::typelevel::NoneT,
+            Channel<Ch0, Ready>,
+        >,
     >,
 >;
 

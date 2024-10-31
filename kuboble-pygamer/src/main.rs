@@ -2,6 +2,7 @@
 #![no_main]
 #![feature(let_chains)]
 
+use atsamd_hal::dmac::{DmaController, PriorityLevel};
 use controls::PyGamerController;
 use core::cell::RefCell;
 use kuboble_core::level_select::LevelProgress;
@@ -48,15 +49,21 @@ fn main() -> ! {
         )
         .unwrap();
 
+    // Setup a DMA channel
+    let channels = DmaController::init(peripherals.dmac, &mut peripherals.pm).split();
+
     // Setup the neopixels
     let neopixels = {
+        // Configure the SERCOM2 clock
         let gclk0 = clocks.gclk0();
         let sercom2_clock = clocks.sercom2_core(&gclk0).unwrap();
 
+        // Setup the PADS
         let pads: output::Test = spi::Pads::default()
             .sclk(pins.i2c.scl)
             .data_out(pins.neopixel.neopixel);
 
+        // Configure the SPI
         let config = spi::Config::new(
             &mut peripherals.mclk,
             peripherals.sercom2,
@@ -67,7 +74,13 @@ fn main() -> ! {
         .spi_mode(spi::MODE_0)
         .baud(3.MHz());
 
-        let neopixels_spi = config.enable().into_panic_on_read();
+        // Configure the DMA channel
+        let channel = channels.0.init(PriorityLevel::Lvl3);
+
+        let neopixels_spi = config
+            .enable()
+            .with_tx_channel(channel)
+            .into_panic_on_read();
 
         ws2812_spi::Ws2812::new(neopixels_spi)
     };
