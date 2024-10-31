@@ -6,8 +6,8 @@ version = "0.1.0"
 [dependencies]
 arrayvec = {version = "0.7.6", default-features = false}
 derive-new = "0.7.0"
-embedded-graphics = "0.7"
-embedded-graphics-framebuf = "0.2"
-embedded-sprites = "0.1.2"
+embedded-graphics = "0.8"
+embedded-graphics-framebuf = "0.5"
+embedded-sprites = "0.2.0"
 kuboble-core = {path = "../kuboble-core"}
 #strum = {version = "0.26.3", default-features = false}
