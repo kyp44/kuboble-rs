@@ -59,7 +59,7 @@ fn main() -> ! {
         let sercom2_clock = clocks.sercom2_core(&gclk0).unwrap();
 
         // Setup the PADS
-        let pads: output::Test = spi::Pads::default()
+        let pads = spi::Pads::default()
             .sclk(pins.i2c.scl)
             .data_out(pins.neopixel.neopixel);
 

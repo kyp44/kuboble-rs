@@ -13,14 +13,10 @@ use pygamer::{
         typelevel::NoneT,
     },
     pac::Sercom2,
-    TftDc, TftReset, TftSpi,
+    DisplayDriver,
 };
 use pygamer_engine::{BufferedDisplay, GameDisplay, GameIndicator, GameOutput};
 use smart_leds::{SmartLedsWrite, RGB};
-
-pub type DisplayDriver = st7735_lcd::ST7735<TftSpi, TftDc, TftReset>;
-
-pub type Test = spi::PadsFromIds<Sercom2, IoSet1, NoneT, PA15, PA13>;
 
 pub type NeoPixels = ws2812_spi::Ws2812<
     spi::PanicOnRead<
@@ -32,7 +28,6 @@ pub type NeoPixels = ws2812_spi::Ws2812<
         >,
     >,
 >;
-
 trait PieceExt {
     fn neopixel_color(&self) -> RGB<u8>;
 }
