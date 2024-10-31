@@ -50,15 +50,22 @@ fn main() -> ! {
 
     // Setup the neopixels
     let neopixels = {
+        let gclk0 = clocks.gclk0();
+        let sercom2_clock = clocks.sercom2_core(&gclk0).unwrap();
+
         let pads: output::Test = spi::Pads::default()
             .sclk(pins.i2c.scl)
             .data_out(pins.neopixel.neopixel);
 
-        let config = spi::Config::new(&mut peripherals.mclk, peripherals.sercom2, pads, 3.MHz())
-            .spi_mode(spi::MODE_0);
-
-        // TODO: Not reaching this line
-        panic!();
+        let config = spi::Config::new(
+            &mut peripherals.mclk,
+            peripherals.sercom2,
+            pads,
+            sercom2_clock.freq(),
+            //3.MHz(),
+        )
+        .spi_mode(spi::MODE_0)
+        .baud(3.MHz());
 
         let neopixels_spi = config.enable().into_panic_on_read();
 
