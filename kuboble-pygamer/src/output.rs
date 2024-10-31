@@ -5,29 +5,26 @@ use embedded_graphics::prelude::*;
 use kuboble_core::{LevelRating, Piece};
 use pygamer::{
     hal::{
-        gpio::{AlternateC, Output, Pin, PushPull, Reset, PA14, PA15, PB03},
-        sercom::{spi, GetPad, IoSet, IoSet1, IoSet4, Pad1},
+        gpio::{PA13, PA15},
+        sercom::{spi, IoSet1},
         typelevel::NoneT,
     },
-    pac::{Sercom2, Sercom4},
-    NeopixelPin, Scl, SpiSclk, TftDc, TftReset, TftSclk, TftSpi,
+    pac::Sercom2,
+    TftDc, TftReset, TftSpi,
 };
 use pygamer_engine::{BufferedDisplay, GameDisplay, GameIndicator, GameOutput};
 use smart_leds::{SmartLedsWrite, RGB};
 
 pub type DisplayDriver = st7735_lcd::ST7735<TftSpi, TftDc, TftReset>;
 
-pub type Test<X: IoSet> = spi::Pads<Sercom2, X, NoneT, Y, Z>;
+pub type Test = spi::PadsFromIds<Sercom2, IoSet1, NoneT, PA15, PA13>;
 
-/* pub type NeoPixels = ws2812_spi::Ws2812<
+pub type NeoPixels = ws2812_spi::Ws2812<
     spi::PanicOnRead<
-        spi::Spi<
-            spi::Config<spi::Pads<Sercom4, IoSet4, NoneT, NeopixelPin, Pin<PB03, PushPull>>>,
-            spi::Tx,
-        >,
+        spi::Spi<spi::Config<spi::PadsFromIds<Sercom2, IoSet1, NoneT, PA15, PA13>>, spi::Tx>,
     >,
->; */
-/*
+>;
+
 trait PieceExt {
     fn neopixel_color(&self) -> RGB<u8>;
 }
@@ -109,4 +106,3 @@ impl GameDisplay for PyGamerOutput {
 impl GameOutput for PyGamerOutput {
     const SLIDE_SPEED: i32 = 14;
 }
- */

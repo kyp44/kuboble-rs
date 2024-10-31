@@ -5,13 +5,13 @@
 use controls::PyGamerController;
 use core::cell::RefCell;
 use kuboble_core::level_select::LevelProgress;
+use output::PyGamerOutput;
 use pac::{CorePeripherals, Peripherals};
 use pygamer::hal::adc::Adc;
 use pygamer::hal::clock::GenericClockController;
 use pygamer::hal::delay::Delay;
 use pygamer::hal::prelude::*;
 use pygamer::hal::sercom::spi;
-use pygamer::hal::timer::TimerCounter;
 use pygamer::pac::gclk::pchctrl::Genselect;
 use pygamer::{entry, pac, Pins};
 use pygamer_engine::run_game;
@@ -48,28 +48,29 @@ fn main() -> ! {
         )
         .unwrap();
 
+    // Setup the neopixels
+    let neopixels = {
+        let pads: output::Test = spi::Pads::default()
+            .sclk(pins.i2c.scl)
+            .data_out(pins.neopixel.neopixel);
+
+        let gclk = &clocks.gclk0();
+        let config = spi::Config::new(
+            &mut peripherals.mclk,
+            peripherals.sercom2,
+            pads,
+            clocks.sercom2_core(gclk).unwrap().freq(),
+        )
+        .spi_mode(spi::MODE_0)
+        .baud(3.MHz());
+
+        let neopixels_spi = config.enable().into_panic_on_read();
+
+        ws2812_spi::Ws2812::new(neopixels_spi)
+    };
+
     // Need to share the delay
     let delay = RefCell::new(delay);
-
-    let pads: output::Test<_, _, _> = spi::Pads::default()
-        .sclk(pins.sd_cs_pin.into())
-        .data_out(pins.neopixel.into());
-
-    /* let config = spi::Config::new(
-        &mut peripherals.mclk,
-        peripherals.sercom2,
-        pads,
-        clocks.sercom2_core(&clocks.gclk0()).unwrap().freq(),
-    )
-    .spi_mode(spi::MODE_0)
-    .baud(3.MHz());
-
-    let neopixels_spi = config.enable().into_panic_on_read();
-
-    let mut neopixels: () = ws2812_spi::Ws2812::new(neopixels_spi);
-
-    use smart_leds::{SmartLedsWrite, RGB};
-    neopixels.write();
 
     // TODO Need to read and later write this from EEPROM
     let mut level_progress = LevelProgress::default();
@@ -88,7 +89,7 @@ fn main() -> ! {
         ),
         PyGamerOutput::new(display, neopixels),
         &mut level_progress,
-    ); */
+    );
 
     loop {}
 }
