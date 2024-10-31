@@ -3,17 +3,18 @@ use core::iter::{repeat, repeat_n};
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
 use kuboble_core::{LevelRating, Piece};
+use pygamer::hal::dmac::dma_controller::Ch0;
 use pygamer::{
     hal::{
         gpio::{Output, Pin, PushPull, PA15},
         timer::TimerCounter4,
     },
-    TftDc, TftReset, TftSpi,
+    TftDc, TftReset,
 };
 use pygamer_engine::{BufferedDisplay, GameDisplay, GameIndicator, GameOutput};
 use smart_leds::{SmartLedsWrite, RGB};
 
-pub type DisplayDriver = st7735_lcd::ST7735<crate::DmaSpi, TftDc, TftReset>;
+pub type DisplayDriver = st7735_lcd::ST7735<crate::TftDmaSpi<Ch0>, TftDc, TftReset>;
 
 pub type NeoPixels = ws2812_timer_delay::Ws2812<TimerCounter4, Pin<PA15, Output<PushPull>>>;
 
