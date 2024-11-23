@@ -8,7 +8,7 @@ use pygamer::{
         gpio::{Output, Pin, PushPull, PA15},
         timer::TimerCounter4,
     },
-    DisplayDriver,
+    pins::DisplayDriver,
 };
 use pygamer_engine::{BufferedDisplay, GameDisplay, GameIndicator, GameOutput};
 use smart_leds::{SmartLedsWrite, RGB};
