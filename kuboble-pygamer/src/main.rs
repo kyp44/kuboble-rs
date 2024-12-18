@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 #![feature(let_chains)]
+#![feature(iter_advance_by)]
 
 use controls::PyGamerController;
 use core::cell::RefCell;
@@ -10,13 +11,12 @@ use pac::{CorePeripherals, Peripherals};
 use pygamer::hal::adc::Adc;
 use pygamer::hal::clock::GenericClockController;
 use pygamer::hal::delay::Delay;
-use pygamer::hal::prelude::*;
-use pygamer::hal::timer::TimerCounter;
 use pygamer::pac::gclk::pchctrl::Genselect;
 use pygamer::{entry, pac, Pins};
 use pygamer_engine::run_game;
 
 mod controls;
+mod display;
 mod output;
 
 #[entry]
@@ -32,8 +32,6 @@ fn main() -> ! {
         &mut peripherals.nvmctrl,
     );
     let pins = Pins::new(peripherals.port).split();
-    // TODO: use sleeping delay here for battery life? Evidently worth it even for delays of like 50ms
-    //let x = SleepingDelay::new();
     let mut delay = Delay::new(core.SYST, &mut clocks);
 
     // Initialize the display
@@ -48,23 +46,19 @@ fn main() -> ! {
         )
         .unwrap();
 
+    // Setup the SPI for the neopixels
+    // TODO: Probably use DMA for interrupt robustness pending: https://github.com/smart-leds-rs/ws2812-spi-rs/pull/39
+    let neopixels = pins.neopixel.init_spi(
+        &mut clocks,
+        // Unfortunately, the SPI driver requires a clock pin, even though it's not used by the
+        // neopixels.
+        pins.i2c.scl,
+        peripherals.sercom2,
+        &mut peripherals.mclk,
+    );
+
     // Need to share the delay
     let delay = RefCell::new(delay);
-
-    // Configure a clock for the TC4 and TC5 peripherals
-    let timer_clock = clocks.gclk0();
-    let tc45 = &clocks.tc4_tc5(&timer_clock).unwrap();
-
-    // Set up the neo-pixels driver started at a 3 MHz rate
-    let mut neopixels_timer = TimerCounter::tc4_(tc45, peripherals.tc4, &mut peripherals.mclk);
-    _embedded_hal_timer_CountDown::start(
-        &mut neopixels_timer,
-        3.MHz::<1000000, 1>().into_duration(),
-    );
-    let neopixels = ws2812_timer_delay::Ws2812::new(
-        neopixels_timer,
-        pins.neopixel.neopixel.into_push_pull_output(),
-    );
 
     // TODO Need to read and later write this from EEPROM
     let mut level_progress = LevelProgress::default();

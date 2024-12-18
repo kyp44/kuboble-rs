@@ -3,17 +3,12 @@ use core::iter::{repeat, repeat_n};
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
 use kuboble_core::{LevelRating, Piece};
-use pygamer::{
-    hal::{
-        gpio::{Output, Pin, PushPull, PA15},
-        timer::TimerCounter4,
-    },
-    pins::DisplayDriver,
-};
+use pygamer::{pins::DisplayDriver, NeopixelSpi};
 use pygamer_engine::{BufferedDisplay, GameDisplay, GameIndicator, GameOutput};
 use smart_leds::{SmartLedsWrite, RGB};
+use ws2812_spi::Ws2812;
 
-pub type NeoPixels = ws2812_timer_delay::Ws2812<TimerCounter4, Pin<PA15, Output<PushPull>>>;
+pub type NeoPixels = Ws2812<NeopixelSpi>;
 
 trait PieceExt {
     fn neopixel_color(&self) -> RGB<u8>;
