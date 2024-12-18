@@ -4,7 +4,7 @@ use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
 use kuboble_core::{LevelRating, Piece};
 use pygamer::{pins::DisplayDriver, NeopixelSpi};
-use pygamer_engine::{BufferedDisplay, GameDisplay, GameIndicator, GameOutput};
+use pygamer_engine::prelude::*;
 use smart_leds::{SmartLedsWrite, RGB};
 use ws2812_spi::Ws2812;
 
@@ -84,7 +84,7 @@ impl DrawTarget for PyGamerOutput {
     }
 }
 impl GameDisplay for PyGamerOutput {
-    fn flush(&mut self) {
+    fn render(&mut self) {
         self.buffer.draw(&mut self.display).unwrap()
     }
 }

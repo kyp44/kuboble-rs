@@ -4,10 +4,7 @@ use embedded_graphics_simulator::{
     sdl2::Keycode, BinaryColorTheme, OutputSettings, SimulatorDisplay, SimulatorEvent, Window,
 };
 use kuboble_core::{level_run::Direction, level_select::LevelProgress, LevelRating, Piece};
-use pygamer_engine::{
-    run_game, BufferedDisplay, ControlAction, Controller, GameDisplay, GameIndicator, GameOutput,
-    GameResult, DISPLAY_SIZE,
-};
+use pygamer_engine::prelude::*;
 use std::{cell::RefCell, fs::File, u32};
 
 #[derive(new)]
@@ -75,7 +72,7 @@ impl DrawTarget for SimulatorOutput<'_> {
     }
 }
 impl GameDisplay for SimulatorOutput<'_> {
-    fn flush(&mut self) {
+    fn render(&mut self) {
         self.window.borrow_mut().update(&self.display);
     }
 }

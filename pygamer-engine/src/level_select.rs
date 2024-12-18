@@ -1,7 +1,7 @@
 use crate::{
     assets::{pieces::SMALL_SIZE, stars::STAR_SIZE},
+    display::{DISPLAY_SIZE, FONT},
     ControlAction, Controller, GameOutput, GameResult, LevelRatingExt, PieceExt, Stars,
-    DISPLAY_SIZE, FONT,
 };
 use arrayvec::ArrayString;
 use core::fmt::Write;
@@ -130,7 +130,7 @@ where
 }
 impl<G: GameOutput> BufferedRenderer for SelectRenderer<'_, G> {
     fn flush(&mut self) {
-        self.output.flush();
+        self.output.render();
     }
 }
 impl<G: GameOutput> LevelSelectRenderer for SelectRenderer<'_, G>

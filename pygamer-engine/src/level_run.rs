@@ -1,5 +1,7 @@
 use crate::{assets, TryIntoSize, SPACE_RECT, SPACE_SIZE};
-use crate::{ControlAction, Controller, GameOutput, GameResult, IntoPoint, PieceExt, FONT};
+use crate::{
+    display::FONT, ControlAction, Controller, GameOutput, GameResult, IntoPoint, PieceExt,
+};
 use arrayvec::ArrayString;
 use core::fmt::Write;
 use embedded_graphics::{
@@ -93,7 +95,7 @@ where
 }
 impl<G: GameOutput> BufferedRenderer for LevelRenderer<'_, G> {
     fn flush(&mut self) {
-        self.output.flush();
+        self.output.render();
     }
 }
 impl<G: GameOutput> LevelRunRenderer for LevelRenderer<'_, G>
@@ -171,7 +173,7 @@ where
                 is_active,
             );
 
-            self.output.flush();
+            self.output.render();
 
             // Are we done?
             if piece_pos >= final_pos {

@@ -1,14 +1,15 @@
-use core::fmt::Write;
-use core::panic::PanicInfo;
-use embedded_graphics::{mono_font, pixelcolor::Rgb565};
-use embedded_graphics::{prelude::*, text};
-use pygamer::hal::clock::GenericClockController;
-use pygamer::hal::delay::Delay;
-use pygamer::hal::prelude::*;
-use pygamer::{Pins, RedLed};
+use core::convert::Infallible;
 
-// TODO: No crate that does this exists, should we generalize and publish it?
-// We could also move this to `pygamer`.
+use embedded_graphics::mono_font;
+use embedded_graphics::pixelcolor::Rgb565;
+use embedded_graphics::primitives::Rectangle;
+use embedded_graphics::{prelude::*, text};
+use embedded_graphics_framebuf::FrameBuf;
+
+pub const DISPLAY_SIZE: Size = Size::new(160, 128);
+pub const FONT: mono_font::MonoFont = embedded_graphics::mono_font::ascii::FONT_5X8;
+
+// TODO: No crate that does this exists
 pub struct DisplayTextStyle<C> {
     /// Location of the text on the screen.
     position: Point,
@@ -116,67 +117,54 @@ impl<D: DrawTarget<Color = C>, C: PixelColor> core::fmt::Write for DisplayWriter
     }
 }
 
-// TODO: This could be useful as a feature in `pygamer`, but depends on the above.
-// Maybe wait for clocks v2 since it will be harder to change later.
-#[panic_handler]
-fn panic(info: &PanicInfo) -> ! {
-    cortex_m::interrupt::disable();
+/// A [`DrawTarget`] that is just a frame buffer in memory for the
+/// entire PyGamer display.
+///
+/// This also implements [`Drawable`] so that it can be rendered to the
+/// actual display.
+pub struct BufferedDisplay {
+    frame_buffer: [Rgb565; DISPLAY_SIZE.width as usize * DISPLAY_SIZE.height as usize],
+}
+impl Drawable for BufferedDisplay {
+    type Color = Rgb565;
+    type Output = ();
 
-    // Get the peripherals
-    let mut peripherals = unsafe { pygamer::pac::Peripherals::steal() };
-    let core = unsafe { pygamer::pac::CorePeripherals::steal() };
-
-    // Setup the clocks
-    let mut clocks = GenericClockController::with_internal_32kosc(
-        peripherals.gclk,
-        &mut peripherals.mclk,
-        &mut peripherals.osc32kctrl,
-        &mut peripherals.oscctrl,
-        &mut peripherals.nvmctrl,
-    );
-    let pins = Pins::new(peripherals.port).split();
-
-    // In debug, print the panic message to the display
-    #[cfg(debug_assertions)]
+    fn draw<D>(&self, target: &mut D) -> Result<Self::Output, D::Error>
+    where
+        D: DrawTarget<Color = Self::Color>,
     {
-        // Initialize the display
-        let mut delay = Delay::new(core.SYST, &mut clocks);
-        let (mut display, _backlight) = pins
-            .display
-            .init(
-                &mut clocks,
-                peripherals.sercom4,
-                &mut peripherals.mclk,
-                peripherals.tc2,
-                &mut delay,
-            )
-            .unwrap();
-
-        let style = DisplayTextStyle::new(
-            Point::zero(),
-            Some(display.size()),
-            mono_font::MonoTextStyleBuilder::new()
-                .font(&mono_font::ascii::FONT_5X8)
-                .text_color(Rgb565::BLACK)
-                .background_color(Rgb565::RED)
-                .build(),
-            text::TextStyleBuilder::new()
-                .alignment(text::Alignment::Left)
-                .baseline(text::Baseline::Top)
-                .build(),
-        );
-
-        let _ = write!(DisplayWriter::new(&mut display, &style), "{}", info);
+        target.fill_contiguous(
+            &Rectangle::new(Point::zero(), DISPLAY_SIZE),
+            self.frame_buffer.iter().copied(),
+        )
     }
+}
+impl Default for BufferedDisplay {
+    fn default() -> Self {
+        Self {
+            frame_buffer: [Rgb565::default();
+                DISPLAY_SIZE.width as usize * DISPLAY_SIZE.height as usize],
+        }
+    }
+}
+impl OriginDimensions for BufferedDisplay {
+    fn size(&self) -> Size {
+        DISPLAY_SIZE
+    }
+}
+impl DrawTarget for BufferedDisplay {
+    type Color = Rgb565;
+    type Error = Infallible;
 
-    // In release, just light the LED
-    #[cfg(debug_assertions)]
+    fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
+    where
+        I: IntoIterator<Item = Pixel<Self::Color>>,
     {
-        let mut red_led: RedLed = pins.led_pin.into();
-        red_led.set_high().unwrap();
-    }
-
-    loop {
-        cortex_m::asm::wfi();
+        FrameBuf::new(
+            &mut self.frame_buffer,
+            DISPLAY_SIZE.width as usize,
+            DISPLAY_SIZE.height as usize,
+        )
+        .draw_iter(pixels)
     }
 }

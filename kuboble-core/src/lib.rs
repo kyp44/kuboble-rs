@@ -152,9 +152,9 @@ pub enum Space {
 impl Space {
     pub const fn from_char(c: char) -> Option<Self> {
         match c {
-            '_' => Some(Space::Void),
-            '#' => Some(Space::Wall),
-            ' ' => Some(Space::Free),
+            '_' => Some(Self::Void),
+            '#' => Some(Self::Wall),
+            ' ' => Some(Self::Free),
             _ => match Piece::from_char(c) {
                 Some(p) => Some(Self::Goal(p)),
                 None => None,
