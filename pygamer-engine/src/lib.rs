@@ -1,18 +1,15 @@
 #![no_std]
 #![feature(try_trait_v2)]
 #![feature(never_type)]
+#![feature(let_chains)]
+#![feature(iter_advance_by)]
 
-use core::{
-    convert::Infallible,
-    ops::{ControlFlow, FromResidual},
-};
+use core::ops::{ControlFlow, FromResidual};
 
 use assets::stars::STAR_SIZE;
 use derive_new::new;
-use embedded_graphics::{
-    mono_font::MonoFont, pixelcolor::Rgb565, prelude::*, primitives::Rectangle,
-};
-use embedded_graphics_framebuf::FrameBuf;
+use display::FONT;
+use embedded_graphics::{pixelcolor::Rgb565, prelude::*, primitives::Rectangle};
 use embedded_sprites::{image::Image, sprite::Sprite};
 use kuboble_core::{
     level_run::Direction,
@@ -22,12 +19,17 @@ use kuboble_core::{
 use level_run::play_level;
 use level_select::select_level;
 
+pub mod display;
 mod level_run;
 mod level_select;
 
-const FONT: MonoFont = embedded_graphics::mono_font::ascii::FONT_5X8;
-
-pub const DISPLAY_SIZE: Size = Size::new(160, 128);
+pub mod prelude {
+    pub use super::{
+        display::{BufferedDisplay, DisplayTextStyle, DisplayWriter, DISPLAY_SIZE, FONT},
+        run_game, ControlAction, Controller, GameDisplay, GameIndicator, GameOutput, GameResult,
+    };
+    pub use embedded_graphics;
+}
 
 const SPACE_SIZE: u32 = 14;
 static SPACE_RECT: Rectangle = Rectangle::new(Point::new(0, 0), Size::new(SPACE_SIZE, SPACE_SIZE));
@@ -260,7 +262,7 @@ pub trait Controller {
 }
 
 pub trait GameDisplay: DrawTarget<Color = Rgb565> + OriginDimensions {
-    fn flush(&mut self);
+    fn render(&mut self);
 }
 
 pub trait GameIndicator {
@@ -294,54 +296,7 @@ pub trait GameOutput: GameDisplay + GameIndicator {
         )
         .draw(self)
         .unwrap();
-        self.flush();
-    }
-}
-
-pub struct BufferedDisplay {
-    frame_buffer: [Rgb565; DISPLAY_SIZE.width as usize * DISPLAY_SIZE.height as usize],
-}
-impl Drawable for BufferedDisplay {
-    type Color = Rgb565;
-    type Output = ();
-
-    fn draw<D>(&self, target: &mut D) -> Result<Self::Output, D::Error>
-    where
-        D: DrawTarget<Color = Self::Color>,
-    {
-        target.fill_contiguous(
-            &Rectangle::new(Point::zero(), DISPLAY_SIZE),
-            self.frame_buffer.iter().copied(),
-        )
-    }
-}
-impl Default for BufferedDisplay {
-    fn default() -> Self {
-        Self {
-            frame_buffer: [Rgb565::default();
-                DISPLAY_SIZE.width as usize * DISPLAY_SIZE.height as usize],
-        }
-    }
-}
-impl OriginDimensions for BufferedDisplay {
-    fn size(&self) -> Size {
-        DISPLAY_SIZE
-    }
-}
-impl DrawTarget for BufferedDisplay {
-    type Color = Rgb565;
-    type Error = Infallible;
-
-    fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
-    where
-        I: IntoIterator<Item = Pixel<Self::Color>>,
-    {
-        FrameBuf::new(
-            &mut self.frame_buffer,
-            DISPLAY_SIZE.width as usize,
-            DISPLAY_SIZE.height as usize,
-        )
-        .draw_iter(pixels)
+        self.render();
     }
 }
 

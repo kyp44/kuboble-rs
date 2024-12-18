@@ -1,7 +1,6 @@
 #![no_std]
 #![no_main]
 #![feature(let_chains)]
-#![feature(iter_advance_by)]
 
 use controls::PyGamerController;
 use core::cell::RefCell;
@@ -16,8 +15,8 @@ use pygamer::{entry, pac, Pins};
 use pygamer_engine::run_game;
 
 mod controls;
-mod display;
 mod output;
+mod panic;
 
 #[entry]
 fn main() -> ! {
@@ -79,5 +78,5 @@ fn main() -> ! {
         &mut level_progress,
     );
 
-    loop {}
+    panic!("Game ended");
 }
