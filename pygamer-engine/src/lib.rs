@@ -1,7 +1,5 @@
 #![no_std]
 #![feature(try_trait_v2)]
-#![feature(never_type)]
-#![feature(let_chains)]
 #![feature(iter_advance_by)]
 
 use core::ops::{ControlFlow, FromResidual};
@@ -12,9 +10,9 @@ use display::FONT;
 use embedded_graphics::{pixelcolor::Rgb565, prelude::*, primitives::Rectangle};
 use embedded_sprites::{image::Image, sprite::Sprite};
 use kuboble_core::{
+    LevelRating, Piece, Vector,
     level_run::Direction,
     level_select::{Action, LevelProgress, LevelSelector},
-    LevelRating, Piece, Vector,
 };
 use level_run::play_level;
 use level_select::select_level;
@@ -25,8 +23,9 @@ mod level_select;
 
 pub mod prelude {
     pub use super::{
-        display::{BufferedDisplay, DisplayTextStyle, DisplayWriter, DISPLAY_SIZE, FONT},
-        run_game, ControlAction, Controller, GameDisplay, GameIndicator, GameOutput, GameResult,
+        ControlAction, Controller, GameDisplay, GameIndicator, GameOutput, GameResult,
+        display::{BufferedDisplay, DISPLAY_SIZE, DisplayTextStyle, DisplayWriter, FONT},
+        run_game,
     };
     pub use embedded_graphics;
 }
@@ -105,8 +104,8 @@ impl<T: TryInto<u32>> TryIntoSize<T::Error> for Vector<T> {
 
 trait PieceExt {
     fn display_color(&self) -> Rgb565;
-    fn image(&self, is_active: bool) -> Image<Rgb565>;
-    fn image_small(&self) -> Image<Rgb565>;
+    fn image(&self, is_active: bool) -> Image<'_, Rgb565>;
+    fn image_small(&self) -> Image<'_, Rgb565>;
 }
 impl PieceExt for Piece {
     fn display_color(&self) -> Rgb565 {
@@ -117,7 +116,7 @@ impl PieceExt for Piece {
         }
     }
 
-    fn image(&self, is_active: bool) -> Image<Rgb565> {
+    fn image(&self, is_active: bool) -> Image<'_, Rgb565> {
         match self {
             Piece::Green => {
                 if is_active {
@@ -143,7 +142,7 @@ impl PieceExt for Piece {
         }
     }
 
-    fn image_small(&self) -> Image<Rgb565> {
+    fn image_small(&self) -> Image<'_, Rgb565> {
         match self {
             Piece::Green => assets::pieces::GREEN_SMALL,
             Piece::Orange => assets::pieces::ORANGE_SMALL,
@@ -227,7 +226,7 @@ impl<T> FromResidual for GameResult<T> {
 }
 impl<T> core::ops::Try for GameResult<T> {
     type Output = T;
-    type Residual = ();
+    type Residual = Option<!>;
 
     fn from_output(output: Self::Output) -> Self {
         Self::Continue(output)
@@ -235,7 +234,7 @@ impl<T> core::ops::Try for GameResult<T> {
 
     fn branch(self) -> ControlFlow<Self::Residual, Self::Output> {
         match self {
-            GameResult::Exit => ControlFlow::Break(()),
+            GameResult::Exit => ControlFlow::Break(None),
             GameResult::Continue(v) => ControlFlow::Continue(v),
         }
     }

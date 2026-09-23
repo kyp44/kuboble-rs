@@ -1,13 +1,13 @@
 use crate::{
+    Level, LevelRating, Piece, PieceMap, Space, Vector,
     level_select::{LevelInfo, LevelStatus},
     levels::MAX_STRIP_SIZE,
-    Level, LevelRating, Piece, PieceMap, Space, Vector,
 };
 use arrayvec::{ArrayString, ArrayVec};
 use core::{fmt::Write, mem::variant_count, ops::Neg};
 use itertools::iproduct;
 use lazy_static::lazy_static;
-use serde::{de, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de};
 use strum::{EnumIter, IntoEnumIterator};
 
 pub mod render;
@@ -351,7 +351,7 @@ impl<'a> LevelRun<'a> {
         })
     }
 
-    pub fn execute_action(&mut self, action: Action) -> LevelRunChange {
+    pub fn execute_action(&mut self, action: Action) -> LevelRunChange<'_> {
         match action {
             Action::Move(d) => self.attempt_move(d),
             Action::ChangeActivePiece => LevelRunChange {
@@ -363,7 +363,7 @@ impl<'a> LevelRun<'a> {
         }
     }
 
-    fn attempt_move(&mut self, direction: Direction) -> LevelRunChange {
+    fn attempt_move(&mut self, direction: Direction) -> LevelRunChange<'_> {
         let mut muv = Move::new(self.active_piece, direction);
         let mut new_state = self.state.clone();
         let mut old_active_piece = None;
@@ -413,7 +413,7 @@ impl<'a> LevelRun<'a> {
         change
     }
 
-    fn change_active_piece(&mut self) -> PiecesChanged {
+    fn change_active_piece(&mut self) -> PiecesChanged<'_> {
         let new_piece =
             Piece::try_from((self.active_piece as u8 + 1) % self.level().num_pieces()).unwrap();
 
@@ -425,7 +425,7 @@ impl<'a> LevelRun<'a> {
         }
     }
 
-    pub fn undo_move(&mut self) -> LevelRunChange {
+    pub fn undo_move(&mut self) -> LevelRunChange<'_> {
         if !self.move_stack.is_empty() {
             // Determine the inverse move
             let undo_slide = self.move_stack.pop().unwrap();
@@ -449,7 +449,7 @@ impl<'a> LevelRun<'a> {
         }
     }
 
-    pub fn restart(&mut self) -> LevelRunChange {
+    pub fn restart(&mut self) -> LevelRunChange<'_> {
         if !self.move_stack.is_empty() {
             // We need to clear the stack
             let old_state = self.state.clone();

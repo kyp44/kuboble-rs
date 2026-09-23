@@ -1,11 +1,11 @@
 use derive_new::new;
 use embedded_graphics::{pixelcolor::Rgb565, prelude::*};
 use embedded_graphics_simulator::{
-    sdl2::Keycode, BinaryColorTheme, OutputSettings, SimulatorDisplay, SimulatorEvent, Window,
+    BinaryColorTheme, OutputSettings, SimulatorDisplay, SimulatorEvent, Window, sdl2::Keycode,
 };
-use kuboble_core::{level_run::Direction, level_select::LevelProgress, LevelRating, Piece};
+use kuboble_core::{LevelRating, Piece, level_run::Direction, level_select::LevelProgress};
 use pygamer_engine::prelude::*;
-use std::{cell::RefCell, fs::File, u32};
+use std::{cell::RefCell, fs::File};
 
 #[derive(new)]
 struct SimulatorController<'a> {
@@ -47,11 +47,10 @@ struct SimulatorOutput<'a> {
 }
 impl<'a> SimulatorOutput<'a> {
     pub fn new(window: &'a RefCell<Window>) -> Self {
-        let simulator_output = Self {
+        Self {
             display: SimulatorDisplay::<Rgb565>::new(DISPLAY_SIZE),
             window,
-        };
-        simulator_output
+        }
     }
 }
 impl OriginDimensions for SimulatorOutput<'_> {
@@ -61,7 +60,6 @@ impl OriginDimensions for SimulatorOutput<'_> {
 }
 impl DrawTarget for SimulatorOutput<'_> {
     type Color = Rgb565;
-
     type Error = <BufferedDisplay as DrawTarget>::Error;
 
     fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>

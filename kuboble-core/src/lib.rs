@@ -1,6 +1,5 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![feature(variant_count)]
-#![feature(let_chains)]
 #![feature(generic_const_exprs)]
 
 use core::{

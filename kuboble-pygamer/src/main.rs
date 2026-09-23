@@ -1,6 +1,5 @@
 #![no_std]
 #![no_main]
-#![feature(let_chains)]
 
 use controls::PyGamerController;
 use core::cell::RefCell;
